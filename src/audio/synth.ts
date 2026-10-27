@@ -4,6 +4,12 @@ import { TPB, type Note } from '../engine/types.ts';
 let ctx: AudioContext | undefined;
 let out: GainNode;
 let playing: AudioScheduledSourceNode[] = [];
+let timers: number[] = [];
+
+/** sec초 뒤에 fn을 부른다. stopAll()이 함께 취소한다 */
+export function later(sec: number, fn: () => void) {
+  timers.push(window.setTimeout(fn, sec * 1000));
+}
 
 /** 사용자 터치 안에서 처음 불러야 iOS가 소리를 허락한다 */
 export function unlockAudio(): AudioContext {
@@ -49,12 +55,12 @@ function piano(midi: number, at: number, length: number, velocity = 0.8) {
   });
 }
 
-function click(at: number, strong: boolean) {
+function click(at: number, strong: boolean, volume = 0.3) {
   const c = unlockAudio();
   const o = c.createOscillator();
   const g = c.createGain();
   o.frequency.value = strong ? 1760 : 1320;
-  g.gain.setValueAtTime(0.3, at);
+  g.gain.setValueAtTime(volume, at);
   g.gain.exponentialRampToValueAtTime(0.001, at + 0.06);
   o.connect(g).connect(out);
   o.start(at);
@@ -65,6 +71,8 @@ function click(at: number, strong: boolean) {
 export function stopAll() {
   playing.forEach((o) => { try { o.stop(); } catch { /* 이미 멈춤 */ } });
   playing = [];
+  timers.forEach(clearTimeout);
+  timers = [];
 }
 
 /** 건반을 눌렀을 때 바로 내는 소리 */
@@ -91,21 +99,24 @@ export function playNotes(notes: Note[], tempo: number, delay = 0.05): number {
   return tied - c.currentTime;
 }
 
-/** 조성감 세우기: I–IV–V–I 카덴츠 → 1마디 카운트인 → 선율. 전체 길이(초)를 돌려준다 */
-export function playProblem(notes: Note[], tonic: number, beatsPerBar: number, tempo: number, withCadence = true): number {
+const MAJOR = [0, 2, 4, 5, 7, 9, 11, 12];
+const MINOR = [0, 2, 3, 5, 7, 8, 10, 12]; // 라~라 (자연단음계)
+
+/** 조성감 세우기: 음계 도~도(단조는 라~라) → 준비박 1마디 → 메트로놈과 함께 선율. 전체 길이(초)를 돌려준다 */
+export function playProblem(notes: Note[], tonic: number, beatsPerBar: number, tempo: number, withScale = true, minor = false): number {
   const c = unlockAudio();
   stopAll();
   let t = c.currentTime + 0.05;
-  if (withCadence) {
-    const k = tonic > 62 ? tonic - 12 : tonic;
-    const chords = [[k - 12, k, k + 4, k + 7], [k - 7, k, k + 5, k + 9], [k - 5, k - 1, k + 2, k + 7], [k - 12, k, k + 4, k + 7]];
-    chords.forEach((ch, i) => {
-      ch.forEach((m) => piano(m, t, i === 3 ? 1.2 : 0.8, 0.5));
-      t += i === 3 ? 1.6 : 0.9;
+  if (withScale) {
+    (minor ? MINOR : MAJOR).forEach((step, i, all) => {
+      const last = i === all.length - 1;
+      piano(tonic + step, t, last ? 0.7 : 0.3, 0.6);
+      t += last ? 1.1 : 0.32;
     });
   }
   const beat = 60 / tempo;
-  for (let b = 0; b < beatsPerBar; b++) click(t + b * beat, b === 0);
+  const melodyBeats = Math.ceil(notes.reduce((a, n) => a + n.dur, 0) / TPB);
+  for (let b = 0; b < beatsPerBar + melodyBeats; b++) click(t + b * beat, b % beatsPerBar === 0, b < beatsPerBar ? 0.3 : 0.12);
   t += beatsPerBar * beat;
   return playNotes(notes, tempo, t - c.currentTime);
 }

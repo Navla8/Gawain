@@ -15,16 +15,14 @@ export interface Attempt {
 
 interface Data {
   attempts: Attempt[];
-  /** 문제집별 다음에 풀 문제 번호 */
-  next: Record<string, number>;
 }
 
 export function load(): Data {
   try {
     const d = JSON.parse(localStorage.getItem(KEY) ?? '');
-    return { attempts: d.attempts ?? [], next: d.next ?? {} };
+    return { attempts: d.attempts ?? [] };
   } catch {
-    return { attempts: [], next: {} };
+    return { attempts: [] };
   }
 }
 

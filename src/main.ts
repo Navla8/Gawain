@@ -1,11 +1,11 @@
 import './style.css';
 import { TPB, type Note, type Problem } from './engine/types.ts';
-import { SETS } from './engine/bank.ts';
+import { SETS, pickRandom } from './engine/bank.ts';
 import { generate } from './engine/generate.ts';
 import { grade, type GradeItem, type GradeResult } from './engine/grade.ts';
 import { barProblems } from './engine/score.ts';
 import { noteName, solfa, KEY_NAMES } from './engine/theory.ts';
-import { playKey, playNotes, playProblem, stopAll, unlockAudio } from './audio/synth.ts';
+import { later, playKey, playNotes, playProblem, stopAll, unlockAudio } from './audio/synth.ts';
 import { renderStaff } from './ui/staff.ts';
 import { load, save } from './store.ts';
 
@@ -44,20 +44,18 @@ function home() {
     ),
     h('p', { class: 'today' }, `오늘 ${solvedToday}문제`),
     ...SETS.map((s) => {
-      const i = d.next[s.id] ?? 0;
-      return card(`${s.name} 문제집`, `${i + 1} / ${s.problems.length}`, () => startSet(s.id), i / s.problems.length);
+      const solved = new Set(d.attempts.filter((a) => a.problemId.startsWith(s.id + '-')).map((a) => a.problemId)).size;
+      return card(`${s.name} 문제집`, `${solved} / ${s.problems.length} 풀어 봄`, () => startSet(s.id), solved / s.problems.length);
     }),
     card('자동 생성', '도~솔 · 으뜸화음 도약', () => solve(generate(Math.floor(Math.random() * 1e9)), () => home())),
   );
 }
 
-function startSet(setId: string) {
+/** 문제집에서 무작위로 낸다(직전 문제는 피함) */
+function startSet(setId: string, last?: number) {
   const set = SETS.find((s) => s.id === setId)!;
-  const i = (load().next[setId] ?? 0) % set.problems.length;
-  solve(set.problems[i], () => {
-    save((d) => (d.next[setId] = (i + 1) % set.problems.length));
-    startSet(setId);
-  });
+  const i = pickRandom(set.problems.length, last, Math.random);
+  solve(set.problems[i], () => startSet(setId, i));
 }
 
 // ───────── 문제 풀기 ─────────
@@ -101,16 +99,27 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
 
   const staffBox = h('div', { class: 'staff-box' });
   const status = h('p', { class: 'status' });
-  const playBtn = h('button', { class: 'play', onclick: () => listen(true) });
+  let playing = false;
+  const playBtn = h('button', { class: 'play', onclick: () => (playing ? stop() : listen(true)) });
+  const quickBtn = h('button', { class: 'ghost', onclick: () => (playing ? stop() : listen(false)) }, '음계 없이');
   const palette = h('div', { class: 'palette' });
 
-  function listen(cadence: boolean) {
+  /** 음계 → 준비박 → 메트로놈과 선율. 음계 없이 듣기는 재생 횟수를 쓰지 않는다 */
+  function listen(withScale: boolean) {
     unlockAudio();
-    if (cadence) {
+    if (withScale) {
       if (plays <= 0) return;
       plays--;
     }
-    playProblem(p.notes, p.tonic, p.beatsPerBar, p.tempo, cadence);
+    const sec = playProblem(p.notes, p.tonic, p.beatsPerBar, p.tempo, withScale, p.minor);
+    playing = true;
+    later(sec + 0.3, () => { playing = false; draw(); });
+    draw();
+  }
+
+  function stop() {
+    stopAll();
+    playing = false;
     draw();
   }
 
@@ -126,8 +135,10 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
   }
 
   function draw() {
-    playBtn.replaceChildren(...(plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
-    playBtn.toggleAttribute('disabled', plays <= 0);
+    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
+    playBtn.toggleAttribute('disabled', !playing && plays <= 0);
+    playBtn.classList.toggle('stop', playing);
+    quickBtn.toggleAttribute('disabled', playing);
     const svg = renderStaff({
       notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, bars: p.bars, cursor, selected,
       onTap: (i) => {
@@ -190,9 +201,11 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
     result(p, notes, r, next);
   }
 
-  // 건반
+  // 건반. 건반 위를 쓸어도 스크롤되지 않고, 위쪽 띠를 끌어야 스크롤된다(누르려다 밀리는 것 방지)
   const keyboard = h('div', { class: 'keyboard' });
   const whites = h('div', { class: 'whites' });
+  const strip = h('div', { class: 'strip', 'aria-label': '건반 이동' });
+  const thumb = h('div', { class: 'thumb' });
   for (let m = KEY_LOW; m <= KEY_HIGH; m++) {
     const black = [1, 3, 6, 8, 10].includes(m % 12);
     const key = h('button', {
@@ -201,9 +214,32 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
       onpointerdown: (e: PointerEvent) => { e.preventDefault(); input(m); },
     }, m % 12 === 0 ? `C${m / 12 - 1}` : WHITE_NAMES[m % 12]);
     if (black) whites.lastElementChild!.append(key);
-    else whites.append(h('div', { class: 'wkey' }, key));
+    else {
+      whites.append(h('div', { class: 'wkey' }, key));
+      strip.append(h('span', {}, m % 12 === 0 ? `C${m / 12 - 1}` : ''));
+    }
   }
   keyboard.append(whites);
+  strip.append(thumb);
+  const syncThumb = () => {
+    const ratio = strip.clientWidth / keyboard.scrollWidth;
+    thumb.style.left = `${keyboard.scrollLeft * ratio}px`;
+    thumb.style.width = `${keyboard.clientWidth * ratio}px`;
+  };
+  keyboard.addEventListener('scroll', syncThumb);
+  strip.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { strip.setPointerCapture(e.pointerId); } catch { /* 합성 이벤트 등 */ }
+    const ratio = keyboard.scrollWidth / strip.clientWidth;
+    const rect = strip.getBoundingClientRect();
+    // 띠를 누른 곳이 보이는 영역 가운데가 되도록 옮긴 뒤, 끄는 만큼 따라간다
+    const center = (x: number) => (keyboard.scrollLeft = (x - rect.left) * ratio - keyboard.clientWidth / 2);
+    center(e.clientX);
+    const move = (ev: PointerEvent) => center(ev.clientX);
+    const up = () => { strip.removeEventListener('pointermove', move); strip.removeEventListener('pointerup', up); };
+    strip.addEventListener('pointermove', move);
+    strip.addEventListener('pointerup', up);
+  });
 
   const first = p.notes.find((n) => n.midi !== null)!.midi!;
   app.replaceChildren(
@@ -212,10 +248,11 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
       h('span', { class: 'title' }, p.title),
     ),
     h('p', { class: 'info' }, `${KEY_NAMES[p.fifths]} 장조 · ${p.beatsPerBar}/4 · ${p.bars}마디 · 첫 음 ${solfa(first, p.tonic, p.fifths)} ${noteName(first, p.fifths)}`),
-    h('div', { class: 'listen' }, playBtn, h('button', { class: 'ghost', onclick: () => listen(false) }, '카덴츠 없이')),
+    h('div', { class: 'listen' }, playBtn, quickBtn),
     staffBox,
     status,
     palette,
+    strip,
     keyboard,
     h('button', { class: 'submit', onclick: submit }, '제출'),
   );
@@ -223,6 +260,7 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
   // 건반을 문제 음역 가운데로
   const target = keyboard.querySelector(`[data-midi="${Math.max(KEY_LOW, first - 5)}"]`) as HTMLElement | null;
   if (target) keyboard.scrollLeft = target.closest('.wkey')!.getBoundingClientRect().left - keyboard.getBoundingClientRect().left;
+  syncThumb();
 }
 
 // ───────── 결과 ─────────
@@ -269,7 +307,7 @@ function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
   const compare = (b: number) => {
     stopAll();
     const t = playNotes(barNotes(p.notes, b), p.tempo);
-    setTimeout(() => playNotes(barNotes(answer, b), p.tempo), (t + 0.7) * 1000);
+    later(t + 0.7, () => playNotes(barNotes(answer, b), p.tempo));
   };
 
   const errors = r.items.filter((i) => i.verdict !== 'ok').map((i) => {
@@ -300,8 +338,9 @@ function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
     h('div', { class: 'actions' },
       h('button', { onclick: () => { stopAll(); playNotes(p.notes, p.tempo); } }, '정답 듣기'),
       h('button', { onclick: () => { stopAll(); playNotes(answer, p.tempo); } }, '내 답 듣기'),
-      h('button', { onclick: () => solve(p, next, answer) }, '고쳐 보기'),
-      h('button', { onclick: () => solve(p, next) }, '처음부터'),
+      h('button', { class: 'stop-all', onclick: stopAll }, '■  정지'),
+      h('button', { class: 'half', onclick: () => solve(p, next, answer) }, '고쳐 보기'),
+      h('button', { class: 'half', onclick: () => solve(p, next) }, '처음부터'),
       h('button', { class: 'primary', onclick: next }, '다음 문제'),
     ),
   );

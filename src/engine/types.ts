@@ -11,8 +11,10 @@ export interface Note {
 export interface Problem {
   id: string;
   title: string;
-  /** 으뜸음 MIDI 번호. 카덴츠와 상대 계이름의 기준 */
+  /** 으뜸음 MIDI 번호. 시작 음계와 상대 계이름의 기준 */
   tonic: number;
+  /** 단조면 tonic은 '라' (기획 §2: 단조는 라 으뜸). 없으면 장조 */
+  minor?: boolean;
   /** 조표: 양수는 ♯ 개수, 음수는 ♭ 개수 */
   fifths: number;
   beatsPerBar: number;
