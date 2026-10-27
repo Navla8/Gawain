@@ -1,0 +1,15 @@
+# Secrets
+.env
+*.env
+*.pem
+*.p12
+
+# Build & deps
+node_modules/
+dist/
+
+# OS & local agent links
+.DS_Store
+.claude/skills/
+/docs
+/AGENTS.md
