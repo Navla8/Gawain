@@ -56,6 +56,10 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
 
   const len = o.beatsPerBar * TPB;
   const positions: number[] = [];
+  const steps: number[] = [];
+  const colors: string[] = [];
+  const groups = beamGroups(glyphs);
+  const beamed = new Set(groups.flat());
   const cursorX: Record<number, number> = {};
   let accState = new Map<number, number>();
   let bar = 0;
@@ -71,6 +75,7 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     }
     if (!(g.src in cursorX)) cursorX[g.src] = x - 6;
     const color = o.color?.(g.src) ?? (o.selected === g.src ? 'var(--select)' : ink);
+    colors.push(color);
     const grp = el('g', { fill: color, stroke: color }, svg);
     let hx = x + 10;
     if (g.midi !== null) {
@@ -82,8 +87,12 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
         hx += 10;
       }
       accState.set(sp.step, sp.acc);
-      drawNote(grp, g, hx, sp.step);
-    } else drawRest(grp, g, hx);
+      drawNote(grp, g, hx, sp.step, beamed.has(i));
+      steps.push(sp.step);
+    } else {
+      drawRest(grp, g, hx);
+      steps.push(34);
+    }
     positions.push(hx);
     // 탭 영역
     if (o.onTap) {
@@ -97,6 +106,9 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     }
     x = hx + width(g) - 10 + (g.dotted ? 4 : 0);
   });
+
+  // 빔: 같은 박 안의 8분·16분음표 꼬리를 잇는다
+  for (const grp of groups) drawBeam(svg, grp.map((i) => ({ x: positions[i], step: steps[i], value: glyphs[i].value, color: colors[i] })), ink);
 
   // 붙임줄
   glyphs.forEach((g, i) => {
@@ -149,7 +161,53 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
   return svg;
 }
 
-function drawNote(g: SVGGElement, gl: Glyph, x: number, step: number) {
+/** 빔으로 묶을 글리프 인덱스 묶음: 같은 마디·같은 박 안에서 이어진 8분 이하 음표 2개 이상 */
+function beamGroups(glyphs: Glyph[]): number[][] {
+  const out: number[][] = [];
+  let cur: number[] = [];
+  const key = (g: Glyph) => `${g.bar}:${Math.floor(g.start / TPB)}`;
+  const flush = () => { if (cur.length > 1) out.push(cur); cur = []; };
+  glyphs.forEach((g, i) => {
+    const ok = g.midi !== null && g.value <= 6;
+    if (!ok) return flush();
+    if (cur.length && key(glyphs[cur[cur.length - 1]]) !== key(g)) flush();
+    cur.push(i);
+  });
+  flush();
+  return out;
+}
+
+function drawBeam(svg: SVGSVGElement, notes: { x: number; step: number; value: number; color: string }[], ink: string) {
+  const up = notes.reduce((a, n) => a + n.step, 0) / notes.length < 34;
+  const d = up ? -1 : 1; // 기둥이 뻗는 방향
+  const sx = notes.map((n) => n.x + (up ? 5 : -5));
+  const ny = notes.map((n) => y(n.step));
+  const x0 = sx[0], x1 = sx[sx.length - 1];
+  let y0 = ny[0] + d * 30, y1 = ny[ny.length - 1] + d * 30;
+  y1 = y0 + Math.max(-8, Math.min(8, y1 - y0)); // 기울기 제한
+  const at = (x: number) => y0 + ((y1 - y0) * (x - x0)) / (x1 - x0 || 1);
+  // 모든 기둥이 최소 24는 되도록 빔을 바깥으로 민다
+  const shift = Math.max(0, ...notes.map((_, k) => (up ? at(sx[k]) - (ny[k] - 24) : ny[k] + 24 - at(sx[k]))));
+  y0 += d * shift;
+  y1 += d * shift;
+  notes.forEach((n, k) => el('line', { x1: sx[k], x2: sx[k], y1: ny[k], y2: at(sx[k]), stroke: n.color, 'stroke-width': 1.3 }, svg));
+  const bar = (xa: number, xb: number, level: number) => {
+    const o = -d * level * 6;
+    el('path', { d: `M${xa} ${at(xa) + o} L${xb} ${at(xb) + o} L${xb} ${at(xb) + o - d * 4} L${xa} ${at(xa) + o - d * 4} Z`, fill: ink, stroke: 'none' }, svg);
+  };
+  bar(x0, x1, 0);
+  // 16분음표: 이어진 것끼리 둘째 빔, 홀로 있으면 짧은 토막
+  for (let k = 0; k < notes.length; k++) {
+    if (notes[k].value > 3) continue;
+    let j = k;
+    while (j + 1 < notes.length && notes[j + 1].value <= 3) j++;
+    if (j > k) bar(sx[k], sx[j], 1);
+    else bar(k === notes.length - 1 ? sx[k] - 7 : sx[k], k === notes.length - 1 ? sx[k] : sx[k] + 7, 1);
+    k = j;
+  }
+}
+
+function drawNote(g: SVGGElement, gl: Glyph, x: number, step: number, beamed = false) {
   const yy = y(step);
   for (let s = 28; s >= step; s -= 2) el('line', { x1: x - 9, x2: x + 9, y1: y(s), y2: y(s), 'stroke-width': 1 }, g);
   for (let s = 40; s <= step; s += 2) el('line', { x1: x - 9, x2: x + 9, y1: y(s), y2: y(s), 'stroke-width': 1 }, g);
@@ -159,7 +217,7 @@ function drawNote(g: SVGGElement, gl: Glyph, x: number, step: number) {
     ...(filled ? { 'stroke-width': 0 } : { fill: 'none', 'stroke-width': 1.6 }),
   }, g);
   if (gl.dotted) el('circle', { cx: x + 10, cy: step % 2 === 0 ? yy - 4 : yy, r: 1.8, stroke: 'none' }, g);
-  if (gl.value >= 48) return;
+  if (gl.value >= 48 || beamed) return;
   const up = step < 34;
   const sx = up ? x + 5 : x - 5;
   const ey = up ? yy - 32 : yy + 32;

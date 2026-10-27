@@ -1,13 +1,15 @@
 import './style.css';
 import { TPB, type Note, type Problem } from './engine/types.ts';
-import { SETS, pickRandom } from './engine/bank.ts';
+import { SETS, pickRandom, findProblem } from './engine/bank.ts';
+import { GOAL_SECONDS, addDays, dayKey, dayStatus, reviewIds, streak } from './engine/habit.ts';
+import { setCounting, startActivityClock, touch } from './activity.ts';
 import { generate } from './engine/generate.ts';
 import { grade, type GradeItem, type GradeResult } from './engine/grade.ts';
 import { barProblems } from './engine/score.ts';
 import { noteName, solfa, KEY_NAMES } from './engine/theory.ts';
 import { later, playKey, playNotes, playProblem, stopAll, unlockAudio } from './audio/synth.ts';
 import { renderStaff } from './ui/staff.ts';
-import { load, save } from './store.ts';
+import { load, merge, save } from './store.ts';
 
 const app = document.getElementById('app')!;
 const MAX_PLAYS = 5;
@@ -29,26 +31,108 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string, 
 
 function home() {
   stopAll();
+  setCounting(false);
   const d = load();
-  const today = new Date().toDateString();
-  const solvedToday = d.attempts.filter((a) => new Date(a.at).toDateString() === today).length;
-  const card = (title: string, sub: string, onclick: () => void, progress?: number) => {
+  const today = dayKey(new Date());
+  const secs = d.seconds[today] ?? 0;
+  const st = streak(d.attempts, d.seconds, today);
+  const review = reviewIds(d.attempts).filter((id) => findProblem(id));
+  const card = (title: string, sub: string, onclick: () => void, progress?: number, cls = 'card') => {
     const meter = progress === undefined ? '' : h('div', { class: 'meter' }, h('i', { style: `width:${Math.round(progress * 100)}%` }));
-    return h('button', { class: 'card', onclick }, h('strong', {}, title), h('em', { class: 'chev' }, '›'), h('span', {}, sub), meter);
+    return h('button', { class: cls, onclick }, h('strong', {}, title), h('em', { class: 'chev' }, '›'), h('span', {}, sub), meter);
   };
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
   app.replaceChildren(
     h('header', { class: 'home-head' },
       h('p', { class: 'eyebrow' }, 'Gawain · Ear Training'),
       h('h1', {}, '가웨인'),
-      h('p', {}, '듣고, 적고, 맞춰 보기'),
     ),
-    h('p', { class: 'today' }, `오늘 ${solvedToday}문제`),
+    h('section', { class: 'today-panel' },
+      ring(secs / GOAL_SECONDS, `${Math.floor(secs / 60)}`, '/ 10분'),
+      h('div', { class: 'streak' },
+        h('b', {}, `${st.days}`), h('span', {}, '일 연속'),
+        h('small', {}, st.days ? `그중 10분 채운 날 ${st.goalDays}일` : '오늘 한 문제로 시작해요'),
+      ),
+    ),
+    calendar(d, today),
+    review.length
+      ? card('오답 다시 풀기', `${review.length}문제 · 만점을 받으면 목록에서 빠져요`, () => startReview(), undefined, 'card review')
+      : '',
     ...SETS.map((s) => {
-      const solved = new Set(d.attempts.filter((a) => a.problemId.startsWith(s.id + '-')).map((a) => a.problemId)).size;
-      return card(`${s.name} 문제집`, `${solved} / ${s.problems.length} 풀어 봄`, () => startSet(s.id), solved / s.problems.length);
+      const mine = d.attempts.filter((a) => a.problemId.startsWith(s.id + '-'));
+      const solved = new Set(mine.map((a) => a.problemId)).size;
+      const recent = mine.slice(-10);
+      const avg = recent.length ? recent.reduce((t, a) => t + (a.pitchScore + a.rhythmScore) / 2, 0) / recent.length : null;
+      const sub = `${solved} / ${s.problems.length} 풀어 봄` + (avg === null ? '' : ` · 최근 평균 ${pct(avg)}`);
+      return card(`${s.name} 문제집`, sub, () => startSet(s.id), solved / s.problems.length);
     }),
     card('자동 생성', '도~솔 · 으뜸화음 도약', () => solve(generate(Math.floor(Math.random() * 1e9)), () => home())),
+    h('footer', { class: 'backup' },
+      h('button', { onclick: exportRecords }, '기록 내보내기'),
+      h('button', { onclick: importRecords }, '기록 불러오기'),
+    ),
   );
+}
+
+/** 오늘 목표 진행 링 */
+function ring(progress: number, big: string, small: string) {
+  const r = 34, c = 2 * Math.PI * r, p = Math.min(1, progress);
+  const wrap = h('div', { class: 'ring' + (p >= 1 ? ' done' : '') });
+  wrap.innerHTML = `<svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="${r}" class="track"/><circle cx="40" cy="40" r="${r}" class="fill" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - p)}" transform="rotate(-90 40 40)"/></svg>`;
+  wrap.append(h('div', { class: 'ring-label' }, h('b', {}, p >= 1 ? '✓' : big), h('span', {}, p >= 1 ? '10분 달성' : small)));
+  return wrap;
+}
+
+/** 최근 5주 달력: 10분 채운 날 ● / 1문제 이상 ◐ / 안 함 빈칸 */
+function calendar(d: ReturnType<typeof load>, today: string) {
+  const [y, m, dd] = today.split('-').map(Number);
+  const start = addDays(today, -(new Date(y, m - 1, dd).getDay() + 28));
+  const grid = h('div', { class: 'cal' }, ...'일월화수목금토'.split('').map((w) => h('i', {}, w)));
+  for (let i = 0; i < 35; i++) {
+    const key = addDays(start, i);
+    const future = key > today;
+    const status = future ? 'future' : dayStatus(key, d.attempts, d.seconds);
+    const part = status === 'some' ? Math.min(1, (d.seconds[key] ?? 0) / GOAL_SECONDS) : 0;
+    grid.append(h('span', {
+      class: `day ${status}${key === today ? ' today' : ''}`,
+      style: status === 'some' ? `--part:${Math.max(0.12, part)}` : false,
+      title: key,
+    }, String(Number(key.slice(8)))));
+  }
+  return grid;
+}
+
+function startReview(last?: string) {
+  const ids = reviewIds(load().attempts).filter((id) => findProblem(id) && id !== last);
+  if (!ids.length) return home();
+  const id = ids[Math.floor(Math.random() * ids.length)];
+  solve(findProblem(id)!, () => startReview(id));
+}
+
+async function exportRecords() {
+  const d = load();
+  const file = new File([JSON.stringify({ app: 'gawain', version: 1, ...d })], `gawain-${dayKey(new Date())}.json`, { type: 'application/json' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); } catch { /* 공유 취소 */ }
+    return;
+  }
+  const a = h('a', { href: URL.createObjectURL(file), download: file.name });
+  a.click();
+  URL.revokeObjectURL(a.getAttribute('href')!);
+}
+
+function importRecords() {
+  const input = h('input', { type: 'file', accept: 'application/json,.json' }) as HTMLInputElement;
+  input.onchange = async () => {
+    try {
+      const n = merge(JSON.parse(await input.files![0].text()));
+      alert(`기록 ${n}개를 합쳤어요.`);
+    } catch {
+      alert('가웨인 기록 파일이 아니에요.');
+    }
+    home();
+  };
+  input.click();
 }
 
 /** 문제집에서 무작위로 낸다(직전 문제는 피함) */
@@ -56,6 +140,14 @@ function startSet(setId: string, last?: number) {
   const set = SETS.find((s) => s.id === setId)!;
   const i = pickRandom(set.problems.length, last, Math.random);
   solve(set.problems[i], () => startSet(setId, i));
+}
+
+/** 10분을 채운 순간 잠깐 띄우는 알림 */
+function toast(text: string) {
+  const t = h('div', { class: 'toast' }, text);
+  document.body.append(t);
+  setTimeout(() => t.classList.add('out'), 2400);
+  setTimeout(() => t.remove(), 2900);
 }
 
 // ───────── 문제 풀기 ─────────
@@ -78,6 +170,7 @@ function noteIcon(value: number): SVGSVGElement {
 
 function solve(p: Problem, next: () => void, initial: Note[] = []) {
   stopAll();
+  setCounting(true);
   const started = Date.now();
   let notes: Note[] = initial.map((n) => ({ ...n }));
   let cursor = notes.length;
@@ -113,7 +206,7 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
     }
     const sec = playProblem(p.notes, p.tonic, p.beatsPerBar, p.tempo, withScale, p.minor);
     playing = true;
-    later(sec + 0.3, () => { playing = false; draw(); });
+    later(sec + 0.3, () => { playing = false; touch(); draw(); });
     draw();
   }
 
@@ -246,6 +339,7 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
     h('header', { class: 'bar' },
       h('button', { class: 'back', onclick: home, 'aria-label': '홈' }, '‹'),
       h('span', { class: 'title' }, p.title),
+      clock(),
     ),
     h('p', { class: 'info' }, `${KEY_NAMES[p.fifths]} 장조 · ${p.beatsPerBar}/4 · ${p.bars}마디 · 첫 음 ${solfa(first, p.tonic, p.fifths)} ${noteName(first, p.fifths)}`),
     h('div', { class: 'listen' }, playBtn, quickBtn),
@@ -273,6 +367,7 @@ const COLORS: Record<string, string> = { ok: 'var(--ok)', pitch: 'var(--bad)', r
 const MARKS: Record<string, string> = { ok: '✓', pitch: '음', rhythm: '박', both: '음박', extra: '+', missing: '빠짐' };
 
 function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
+  setCounting(true);
   const len = p.beatsPerBar * TPB;
   const name = (m: number | null) => (m === null ? '쉼표' : `${solfa(m, p.tonic, p.fifths)}(${noteName(m, p.fifths)})`);
   const bySrc = (pick: (i: GradeItem) => GradeItem['truth']) => {
@@ -326,7 +421,7 @@ function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const perfect = r.pitchScore === 1 && r.rhythmScore === 1;
   app.replaceChildren(
-    h('header', { class: 'bar' }, h('button', { class: 'back', onclick: home, 'aria-label': '홈' }, '‹'), h('span', { class: 'title' }, p.title)),
+    h('header', { class: 'bar' }, h('button', { class: 'back', onclick: home, 'aria-label': '홈' }, '‹'), h('span', { class: 'title' }, p.title), clock()),
     h('div', { class: 'scores' + (perfect ? ' perfect' : '') },
       h('div', {}, h('b', {}, pct(r.pitchScore)), h('span', {}, '음높이')),
       h('div', {}, h('b', {}, pct(r.rhythmScore)), h('span', {}, '리듬')),
@@ -353,6 +448,17 @@ function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
   }
   if (perfect) playNotes([{ midi: p.tonic + 12, dur: 3 }, { midi: p.tonic + 19, dur: 3 }, { midi: p.tonic + 24, dur: 12 }], 120);
 }
+
+/** 머리줄의 오늘 풀이 시간 */
+function clock() {
+  return h('span', { class: 'clock' }, clockText(load().seconds[dayKey(new Date())] ?? 0));
+}
+const clockText = (secs: number) => (secs >= GOAL_SECONDS ? `✓ ${Math.floor(secs / 60)}분` : `${Math.floor(secs / 60)} / 10분`);
+
+startActivityClock((secs, reached) => {
+  document.querySelectorAll('.clock').forEach((c) => (c.textContent = clockText(secs)));
+  if (reached) toast('오늘 10분 달성!');
+});
 
 home();
 

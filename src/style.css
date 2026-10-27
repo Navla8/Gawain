@@ -69,16 +69,80 @@ button:disabled { opacity: 0.35; }
 .home-head .eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); }
 .home-head h1 { margin: 0; font-size: 44px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
 .home-head p { margin: 10px 0 0; color: var(--muted); font-size: 16px; }
-.today {
-  align-self: flex-start;
-  margin: 4px 0 12px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--sunken);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
+.today-panel {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
 }
+.ring { position: relative; width: 96px; height: 96px; flex: none; }
+.ring svg { width: 100%; height: 100%; }
+.ring circle { fill: none; stroke-width: 7; }
+.ring .track { stroke: var(--sunken); }
+.ring .fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+.ring.done .fill { stroke: var(--ok); }
+.ring-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ring-label b { font-size: 28px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+.ring.done .ring-label b { color: var(--ok); }
+.ring-label span { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+.streak { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 6px; }
+.streak b { font-size: 40px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+.streak span { font-size: 15px; font-weight: 700; }
+.streak small { grid-column: 1 / -1; margin-top: 6px; color: var(--muted); font-size: 13px; }
+
+.cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+.cal i { font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; }
+.cal .day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cal .goal { background: var(--accent); color: var(--on-accent); }
+.cal .some {
+  color: var(--ink);
+  background:
+    radial-gradient(closest-side, var(--surface) calc(100% - 3px), transparent calc(100% - 2.5px)),
+    conic-gradient(var(--accent) calc(var(--part) * 360deg), var(--faint) 0);
+}
+.cal .future { opacity: 0.35; }
+.cal .today { outline: 2px solid var(--ink); outline-offset: 1px; }
+.card.review strong { color: var(--accent); }
+.backup { display: flex; justify-content: center; gap: 4px; margin-top: 4px; }
+.backup button { background: none; color: var(--muted); font-size: 13px; padding: 8px 10px; }
+.clock { margin-left: auto; flex: none; padding: 4px 10px; border-radius: 999px; background: var(--sunken); font-size: 12px; font-weight: 700; color: var(--muted); }
+.toast {
+  position: fixed;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 14px);
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: var(--ok);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 10;
+  animation: pop 0.35s ease;
+  transition: opacity 0.4s ease;
+}
+.toast.out { opacity: 0; }
+@keyframes pop { from { transform: translate(-50%, -12px); opacity: 0; } }
 .card {
   display: grid;
   grid-template-columns: 1fr auto;
