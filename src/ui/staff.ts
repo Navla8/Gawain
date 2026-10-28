@@ -36,7 +36,7 @@ const width = (g: Glyph) => Math.max(24, g.ticks * 2.2);
 export function renderStaff(o: StaffOptions): SVGSVGElement {
   const glyphs = toGlyphs(o.notes, o.beatsPerBar);
   const svg = el('svg', { class: 'staff', height: HEIGHT });
-  const ink = 'var(--ink)';
+  const ink = 'var(--text)';
 
   // 머리: 음자리표, 조표, 박자표
   const clef = el('text', { x: 2, y: y(30) + 7, 'font-size': 58, fill: ink, class: 'clef' }, svg);
@@ -74,7 +74,7 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
       accState = new Map();
     }
     if (!(g.src in cursorX)) cursorX[g.src] = x - 6;
-    const color = o.color?.(g.src) ?? (o.selected === g.src ? 'var(--select)' : ink);
+    const color = o.color?.(g.src) ?? (o.selected === g.src ? 'var(--accent)' : ink);
     colors.push(color);
     const grp = el('g', { fill: color, stroke: color }, svg);
     let hx = x + 10;
@@ -101,7 +101,8 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     }
     const lab = o.label?.(g.src);
     if (lab && glyphs.findIndex((h) => h.src === g.src) === i) {
-      const t = el('text', { x: hx, y: HEIGHT - 6, 'font-size': 11, 'text-anchor': 'middle', stroke: 'none' }, grp);
+      // 표식 글자는 작아서 신호색 대신 본문색으로 쓴다(색은 음표가 맡음)
+      const t = el('text', { x: hx, y: HEIGHT - 6, 'font-size': 11, 'text-anchor': 'middle', stroke: 'none', fill: ink }, grp);
       t.textContent = lab;
     }
     x = hx + width(g) - 10 + (g.dotted ? 4 : 0);

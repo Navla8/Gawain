@@ -375,7 +375,7 @@ const DUR_NAMES: Record<number, string> = {
   48: '온음표', 36: '점2분', 24: '2분', 18: '점4분', 12: '4분', 9: '점8분', 6: '8분', 3: '16분', 16: '셋잇단 2분', 8: '셋잇단 4분', 4: '셋잇단 8분', 2: '셋잇단 16분',
 };
 const durName = (t: number) => DUR_NAMES[t] ?? `${+(t / TPB).toFixed(2)}박`;
-const COLORS: Record<string, string> = { ok: 'var(--ok)', pitch: 'var(--bad)', rhythm: 'var(--warn)', both: 'var(--bad)', extra: 'var(--muted)', missing: 'var(--bad)' };
+const COLORS: Record<string, string> = { ok: 'var(--accent)', pitch: 'var(--signal-danger)', rhythm: 'var(--signal-caution)', both: 'var(--signal-danger)', extra: 'var(--muted)', missing: 'var(--signal-danger)' };
 const MARKS: Record<string, string> = { ok: '✓', pitch: '음', rhythm: '박', both: '음박', extra: '+', missing: '빠짐' };
 
 function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
@@ -440,7 +440,9 @@ function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
     ),
     h('h2', {}, '내 답'), h('div', { class: 'staff-box' }, mine),
     h('h2', {}, '정답'), h('div', { class: 'staff-box' }, truth),
-    h('p', { class: 'legend' }, '✓ 맞음 · 음 음높이 틀림 · 박 리듬 틀림 · + 남는 음 · 빠짐 빠진 음 · 8 옥타브만 틀림'),
+    h('p', { class: 'legend' },
+      h('span', { class: 'ok' }, '●'), ' ✓ 맞음 · ', h('span', { class: 'danger' }, '●'), ' 음 음높이 틀림 · ', h('span', { class: 'caution' }, '●'),
+      ' 박 리듬 틀림 · + 남는 음 · 빠짐 빠진 음 · 8 옥타브만 틀림'),
     errors.length ? h('ul', { class: 'errors' }, ...errors) : h('p', { class: 'great' }, '완벽해요!'),
     h('div', { class: 'actions' },
       h('button', { onclick: () => { stopAll(); playNotes(p.notes, p.tempo); } }, '정답 듣기'),
