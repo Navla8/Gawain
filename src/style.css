@@ -123,6 +123,9 @@ button:disabled { opacity: 0.35; }
 .cal .future { opacity: 0.35; }
 .cal .today { outline: 2px solid var(--ink); outline-offset: 1px; }
 .card.review strong { color: var(--accent); }
+.card.all { background: var(--ink); color: var(--bg); }
+.card.all span, .card.all .chev { color: var(--muted); }
+.card.all .meter { background: rgba(127, 127, 127, 0.3); }
 .backup { display: flex; justify-content: center; gap: 4px; margin-top: 4px; }
 .backup button { background: none; color: var(--muted); font-size: 13px; padding: 8px 10px; }
 .clock { margin-left: auto; flex: none; padding: 4px 10px; border-radius: 999px; background: var(--sunken); font-size: 12px; font-weight: 700; color: var(--muted); }

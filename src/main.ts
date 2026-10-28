@@ -58,6 +58,11 @@ function home() {
     review.length
       ? card('오답 다시 풀기', `${review.length}문제 · 만점을 받으면 목록에서 빠져요`, () => startReview(), undefined, 'card review')
       : '',
+    (() => {
+      const ids = new Set(ALL.map((p) => p.id));
+      const solved = new Set(d.attempts.filter((a) => ids.has(a.problemId)).map((a) => a.problemId)).size;
+      return card('전체 섞어 풀기', `${SETS.map((s) => s.name).join('·')} ${ALL.length}문제 · ${solved}문제 풀어 봄`, () => startAll(), solved / ALL.length, 'card all');
+    })(),
     ...SETS.map((s) => {
       const mine = d.attempts.filter((a) => a.problemId.startsWith(s.id + '-'));
       const solved = new Set(mine.map((a) => a.problemId)).size;
@@ -133,6 +138,13 @@ function importRecords() {
     home();
   };
   input.click();
+}
+
+/** 모든 문제집을 한 풀로 섞어 무작위로 낸다(직전 문제는 피함) */
+const ALL = SETS.flatMap((s) => s.problems);
+function startAll(last?: number) {
+  const i = pickRandom(ALL.length, last, Math.random);
+  solve(ALL[i], () => startAll(i));
 }
 
 /** 문제집에서 무작위로 낸다(직전 문제는 피함) */
