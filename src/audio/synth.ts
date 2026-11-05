@@ -102,18 +102,30 @@ export function playNotes(notes: Note[], tempo: number, delay = 0.05): number {
 const MAJOR = [0, 2, 4, 5, 7, 9, 11, 12];
 const MINOR = [0, 2, 3, 5, 7, 8, 10, 12]; // 라~라 (자연단음계)
 
-/** 조성감 세우기: 음계 도~도(단조는 라~라) → 준비박 1마디 → 메트로놈과 함께 선율. 전체 길이(초)를 돌려준다 */
-export function playProblem(notes: Note[], tonic: number, beatsPerBar: number, tempo: number, withScale = true, minor = false): number {
+/** 음계 도~도(단조는 라~라)를 at부터 치고, 끝나는 시각을 돌려준다 */
+function scale(tonic: number, minor: boolean, at: number): number {
+  let t = at;
+  (minor ? MINOR : MAJOR).forEach((step, i, all) => {
+    const last = i === all.length - 1;
+    piano(tonic + step, t, last ? 0.7 : 0.3, 0.6);
+    t += last ? 1.1 : 0.32;
+  });
+  return t;
+}
+
+/** 음계만 친다. 전체 길이(초)를 돌려준다 */
+export function playScale(tonic: number, minor = false): number {
+  const c = unlockAudio();
+  stopAll();
+  return scale(tonic, minor, c.currentTime + 0.05) - c.currentTime;
+}
+
+/** 조성감 세우기: (첫 재생이면 음계) → 준비박 1마디 → 메트로놈과 함께 선율. 전체 길이(초)를 돌려준다 */
+export function playProblem(notes: Note[], tonic: number, beatsPerBar: number, tempo: number, withScale: boolean, minor = false): number {
   const c = unlockAudio();
   stopAll();
   let t = c.currentTime + 0.05;
-  if (withScale) {
-    (minor ? MINOR : MAJOR).forEach((step, i, all) => {
-      const last = i === all.length - 1;
-      piano(tonic + step, t, last ? 0.7 : 0.3, 0.6);
-      t += last ? 1.1 : 0.32;
-    });
-  }
+  if (withScale) t = scale(tonic, minor, t);
   const beat = 60 / tempo;
   const melodyBeats = Math.ceil(notes.reduce((a, n) => a + n.dur, 0) / TPB);
   for (let b = 0; b < beatsPerBar + melodyBeats; b++) click(t + b * beat, b % beatsPerBar === 0, b < beatsPerBar ? 0.3 : 0.12);

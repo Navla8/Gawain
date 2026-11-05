@@ -1,11 +1,12 @@
 import { TPB, type Note } from '../engine/types.ts';
 import { toGlyphs, type Glyph } from '../engine/score.ts';
-import { spell, keySignatureSteps, keyAccidental, accidentalSymbol } from '../engine/theory.ts';
+import { spell, solfege, keySignatureSteps, keyAccidental, accidentalSymbol } from '../engine/theory.ts';
 
 // 높은음자리표 한 줄 악보를 SVG로 그린다. 음표마다 색·라벨·탭 선택을 직접 제어하기 위해 라이브러리를 쓰지 않는다.
 const S = 10; // 줄 간격
 const TOP = 40;
 const HEIGHT = 158;
+const SOLFEGE_ROW = 14; // 표식 글자 아래에 솔페지 줄을 둘 때 늘어나는 높이
 const y = (step: number) => TOP + (38 - step) * (S / 2);
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -18,6 +19,8 @@ export interface StaffOptions {
   color?: (src: number) => string | undefined;
   /** Note 인덱스별 아래 라벨 */
   label?: (src: number) => string | undefined;
+  /** 음표 아래에 솔페지 음절을 적는다 */
+  solfege?: boolean;
   /** 이 인덱스 앞에 커서를 그린다 (notes.length면 끝) */
   cursor?: number;
   selected?: number | null;
@@ -35,7 +38,8 @@ const width = (g: Glyph) => Math.max(24, g.ticks * 2.2);
 
 export function renderStaff(o: StaffOptions): SVGSVGElement {
   const glyphs = toGlyphs(o.notes, o.beatsPerBar);
-  const svg = el('svg', { class: 'staff', height: HEIGHT });
+  const height = HEIGHT + (o.solfege && o.label ? SOLFEGE_ROW : 0);
+  const svg = el('svg', { class: 'staff', height });
   const ink = 'var(--text)';
 
   // 머리: 음자리표, 조표, 박자표
@@ -78,10 +82,11 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     colors.push(color);
     const grp = el('g', { fill: color, stroke: color }, svg);
     let hx = x + 10;
+    const held = i > 0 && glyphs[i - 1].tie && glyphs[i - 1].midi === g.midi; // 붙임줄로 이어져 다시 소리 내지 않는 음
     if (g.midi !== null) {
       const sp = spell(g.midi, o.fifths);
       const cur = accState.get(sp.step) ?? keyAccidental(sp.letter, o.fifths);
-      if (cur !== sp.acc && !(i > 0 && glyphs[i - 1].tie && glyphs[i - 1].midi === g.midi)) {
+      if (cur !== sp.acc && !held) {
         const t = el('text', { x: hx - 4, y: y(sp.step) + 5, 'font-size': 15, stroke: 'none' }, grp);
         t.textContent = accidentalSymbol(sp.acc);
         hx += 10;
@@ -104,6 +109,10 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
       // 표식 글자는 작아서 신호색 대신 본문색으로 쓴다(색은 음표가 맡음)
       const t = el('text', { x: hx, y: HEIGHT - 6, 'font-size': 11, 'text-anchor': 'middle', stroke: 'none', fill: ink }, grp);
       t.textContent = lab;
+    }
+    if (o.solfege && g.midi !== null && !held) {
+      const t = el('text', { x: hx, y: height - 6, 'font-size': 13, 'text-anchor': 'middle', stroke: 'none', fill: 'var(--muted)', class: 'solfege' }, grp);
+      t.textContent = solfege(g.midi, o.fifths);
     }
     x = hx + width(g) - 10 + (g.dotted ? 4 : 0);
   });
@@ -158,7 +167,7 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     el('rect', { x: cx - 1, y: y(40), width: 2.5, height: y(28) - y(40), fill: 'var(--accent)', class: 'cursor' }, svg);
   }
   svg.setAttribute('width', String(x));
-  svg.setAttribute('viewBox', `0 0 ${x} ${HEIGHT}`);
+  svg.setAttribute('viewBox', `0 0 ${x} ${height}`);
   return svg;
 }
 

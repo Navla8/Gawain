@@ -7,7 +7,7 @@ import { generate } from './engine/generate.ts';
 import { grade, type GradeItem, type GradeResult } from './engine/grade.ts';
 import { barProblems } from './engine/score.ts';
 import { noteName, solfa, KEY_NAMES } from './engine/theory.ts';
-import { later, playKey, playNotes, playProblem, stopAll, unlockAudio } from './audio/synth.ts';
+import { later, playKey, playNotes, playProblem, playScale, stopAll, unlockAudio } from './audio/synth.ts';
 import { renderStaff } from './ui/staff.ts';
 import { load, merge, save } from './store.ts';
 
@@ -205,18 +205,20 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
   const staffBox = h('div', { class: 'staff-box' });
   const status = h('p', { class: 'status' });
   let playing = false;
-  const playBtn = h('button', { class: 'play', onclick: () => (playing ? stop() : listen(true)) });
-  const quickBtn = h('button', { class: 'ghost', onclick: () => (playing ? stop() : listen(false)) }, '음계 없이');
+  const playBtn = h('button', { class: 'play', onclick: () => (playing ? stop() : listen()) });
+  const scaleBtn = h('button', { class: 'ghost', onclick: () => run(playScale(p.tonic, p.minor)) }, '음계 듣기');
   const palette = h('div', { class: 'palette' });
 
-  /** 음계 → 준비박 → 메트로놈과 선율. 음계 없이 듣기는 재생 횟수를 쓰지 않는다 */
-  function listen(withScale: boolean) {
-    unlockAudio();
-    if (withScale) {
-      if (plays <= 0) return;
-      plays--;
-    }
-    const sec = playProblem(p.notes, p.tonic, p.beatsPerBar, p.tempo, withScale, p.minor);
+  /** 준비박 → 메트로놈과 선율. 첫 재생만 음계를 먼저 친다 */
+  function listen() {
+    if (plays <= 0) return;
+    const withScale = plays === MAX_PLAYS;
+    plays--;
+    run(playProblem(p.notes, p.tonic, p.beatsPerBar, p.tempo, withScale, p.minor));
+  }
+
+  /** sec초 동안 재생 중 상태로 둔다 */
+  function run(sec: number) {
     playing = true;
     later(sec + 0.3, () => { playing = false; touch(); draw(); });
     draw();
@@ -243,9 +245,9 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
     playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', !playing && plays <= 0);
     playBtn.classList.toggle('stop', playing);
-    quickBtn.toggleAttribute('disabled', playing);
+    scaleBtn.toggleAttribute('disabled', playing);
     const svg = renderStaff({
-      notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, bars: p.bars, cursor, selected,
+      notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, bars: p.bars, cursor, selected, solfege: true,
       onTap: (i) => {
         selected = selected === i ? null : i;
         cursor = i + 1;
@@ -354,7 +356,7 @@ function solve(p: Problem, next: () => void, initial: Note[] = []) {
       clock(),
     ),
     h('p', { class: 'info' }, `${KEY_NAMES[p.fifths]} 장조 · ${p.beatsPerBar}/4 · ${p.bars}마디 · 첫 음 ${solfa(first, p.tonic, p.fifths)} ${noteName(first, p.fifths)}`),
-    h('div', { class: 'listen' }, playBtn, quickBtn),
+    h('div', { class: 'listen' }, playBtn, scaleBtn),
     staffBox,
     status,
     palette,
@@ -390,14 +392,13 @@ function result(p: Problem, answer: Note[], r: GradeResult, next: () => void) {
   const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
 
   const mine = renderStaff({
-    notes: answer, fifths: p.fifths, beatsPerBar: p.beatsPerBar, bars: p.bars,
+    notes: answer, fifths: p.fifths, beatsPerBar: p.beatsPerBar, bars: p.bars, solfege: true,
     color: (s) => COLORS[ansMap.get(s)?.verdict ?? 'extra'],
     label: (s) => { const v = ansMap.get(s)!; return v ? MARKS[v.verdict] + (v.octave ? '8' : '') : ''; },
   });
   const truth = renderStaff({
-    notes: p.notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, bars: p.bars,
+    notes: p.notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, bars: p.bars, solfege: true,
     color: (s) => (truthMap.get(s)?.verdict === 'ok' ? undefined : COLORS[truthMap.get(s)?.verdict ?? 'ok']),
-    label: (s) => (truthMap.get(s)?.verdict === 'ok' ? '' : p.notes[s].midi === null ? '쉼' : solfa(p.notes[s].midi!, p.tonic, p.fifths)),
   });
 
   // 같은 마디만 정답 → 내 답 순서로 들려준다

@@ -2,6 +2,9 @@ const LETTERS = 'CDEFGAB';
 const NATURAL = [0, 2, 4, 5, 7, 9, 11];
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const SOLFA = ['도', '레', '미', '파', '솔', '라', '티'];
+const SOLFEGE = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
+const SOLFEGE_SHARP = ['Di', 'Ri', '', 'Fi', 'Si', 'Li'];
+const SOLFEGE_FLAT = ['', 'Ra', 'Me', '', 'Se', 'Le', 'Te'];
 const ACC = { '-2': '𝄫', '-1': '♭', '0': '', '1': '♯', '2': '𝄪' } as Record<string, string>;
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
@@ -39,6 +42,12 @@ export function noteName(midi: number, fifths: number): string {
 export function solfa(midi: number, tonic: number, fifths: number): string {
   const [deg, alt] = degreeOf(midi - tonic, fifths < 0);
   return SOLFA[deg] + ACC[alt];
+}
+
+/** 솔페지 음절(이동도). 도는 조표로 정하므로 단조 으뜸음은 La, 반음은 spell()의 표기를 따른다 */
+export function solfege(midi: number, fifths: number): string {
+  const [deg, alt] = degreeOf(midi - fifths * 7, fifths < 0);
+  return (alt > 0 ? SOLFEGE_SHARP : alt < 0 ? SOLFEGE_FLAT : SOLFEGE)[deg];
 }
 
 const SHARP_STEPS = [38, 35, 39, 36, 33, 37, 34];

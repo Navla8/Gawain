@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spell, noteName, solfa, keySignatureSteps } from '../src/engine/theory.ts';
+import { spell, noteName, solfa, solfege, keySignatureSteps } from '../src/engine/theory.ts';
 
 test('조표에 맞춰 음이름을 적는다', () => {
   assert.equal(noteName(60, 0), 'C4');
@@ -26,6 +26,24 @@ test('상대 계이름은 으뜸음 기준 도레미파솔라티', () => {
   assert.equal(solfa(73, 62, 2), '티');
   assert.equal(solfa(66, 60, 0), '파♯');
   assert.equal(solfa(66, 65, -1), '레♭'); // F장조에서 G♭
+});
+
+test('솔페지 음절: 조의 도를 기준으로 음계 음을 읽는다', () => {
+  const scale = (tonic: number, fifths: number) => [0, 2, 4, 5, 7, 9, 11].map((s) => solfege(tonic + s, fifths));
+  const names = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
+  assert.deepEqual(scale(60, 0), names);
+  assert.deepEqual(scale(62, 2), names); // D장조
+  assert.deepEqual(scale(63, -3), names); // E♭장조
+  assert.deepEqual(scale(66, -6), names); // G♭장조
+  assert.equal(solfege(57, 0), 'La'); // 단조도 조표 기준이라 으뜸음이 La
+});
+
+test('솔페지 음절: 반음은 악보 표기를 따른다(♯조 Di Ri Fi Si Li, ♭조 Ra Me Se Le Te)', () => {
+  const chromatic = (tonic: number, fifths: number) => [1, 3, 6, 8, 10].map((s) => solfege(tonic + s, fifths));
+  assert.deepEqual(chromatic(60, 0), ['Di', 'Ri', 'Fi', 'Si', 'Li']);
+  assert.deepEqual(chromatic(67, 1), ['Di', 'Ri', 'Fi', 'Si', 'Li']);
+  assert.deepEqual(chromatic(65, -1), ['Ra', 'Me', 'Se', 'Le', 'Te']);
+  assert.deepEqual(chromatic(63, -3), ['Ra', 'Me', 'Se', 'Le', 'Te']);
 });
 
 test('조표 위치', () => {
