@@ -15,6 +15,15 @@ test('모든 문제가 4/4 4마디를 꽉 채우고 건반 음역(F3~C6) 안에 
   }
 });
 
+test('모든 문제의 음이 조표의 음계 안에 있고 으뜸음이 조표와 맞는다', () => {
+  const major = [0, 2, 4, 5, 7, 9, 11];
+  const pc = (m: number) => ((m % 12) + 12) % 12;
+  for (const s of SETS) for (const p of s.problems) {
+    assert.equal(pc(p.tonic), pc(p.fifths * 7), p.id);
+    assert.ok(p.notes.every((n) => n.midi === null || major.includes(pc(n.midi - p.tonic))), p.id);
+  }
+});
+
 test('랜덤 출제: 직전 문제는 다시 내지 않는다', () => {
   for (let i = 0; i < 200; i++) assert.notEqual(pickRandom(19, 7, Math.random), 7);
   assert.equal(pickRandom(1, 0, Math.random), 0);
