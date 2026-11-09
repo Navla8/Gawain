@@ -1,4 +1,4 @@
-import { TPB, type Note, type SoundEvent } from './types.ts';
+import type { Note, SoundEvent } from './types.ts';
 
 /** 붙임줄로 이어진 같은 음과 연속된 쉼표를 하나의 소리 단위로 합친다 */
 export function toEvents(notes: Note[]): SoundEvent[] {
@@ -18,8 +18,7 @@ export function toEvents(notes: Note[]): SoundEvent[] {
 
 /** 박 수가 맞지 않는 마디 번호(1부터): 모자라는 마디들, 또는 넘치면 마지막 마디.
  *  마디선을 넘는 음표는 악보에서 붙임줄로 나눠 그리므로 허용한다 */
-export function barProblems(notes: Note[], beatsPerBar: number, bars: number): number[] {
-  const len = beatsPerBar * TPB;
+export function barProblems(notes: Note[], len: number, bars: number): number[] {
   const total = notes.reduce((t, n) => t + n.dur, 0);
   if (total > bars * len) return [bars];
   const bad: number[] = [];
@@ -65,9 +64,8 @@ function split(ticks: number): (typeof PIECES)[number][] {
   return best[ticks]?.parts.sort((a, b) => b[0] - a[0]) ?? [[ticks, 12, false, false]];
 }
 
-/** 악보에 그릴 글리프 목록. 마디선에서 음표를 나누고 붙임줄로 잇는다 */
-export function toGlyphs(notes: Note[], beatsPerBar: number): Glyph[] {
-  const len = beatsPerBar * TPB;
+/** 악보에 그릴 글리프 목록. 마디선(len틱마다)에서 음표를 나누고 붙임줄로 잇는다 */
+export function toGlyphs(notes: Note[], len: number): Glyph[] {
   const out: Glyph[] = [];
   let t = 0;
   notes.forEach((n, src) => {

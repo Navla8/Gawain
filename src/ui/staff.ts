@@ -1,4 +1,4 @@
-import { TPB, type Note } from '../engine/types.ts';
+import { TPB, timeSignature, type Note } from '../engine/types.ts';
 import { toGlyphs, type Glyph } from '../engine/score.ts';
 import { spell, solfege, keySignatureSteps, keyAccidental, accidentalSymbol } from '../engine/theory.ts';
 
@@ -14,6 +14,8 @@ export interface StaffOptions {
   notes: Note[];
   fifths: number;
   beatsPerBar: number;
+  /** 한 박의 틱 수(겹박자 18). 없으면 12 */
+  beatTicks?: number;
   bars: number;
   /** Note 인덱스별 색 */
   color?: (src: number) => string | undefined;
@@ -37,7 +39,9 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
 const width = (g: Glyph) => Math.max(24, g.ticks * 2.2);
 
 export function renderStaff(o: StaffOptions): SVGSVGElement {
-  const glyphs = toGlyphs(o.notes, o.beatsPerBar);
+  const beatTicks = o.beatTicks ?? TPB;
+  const len = o.beatsPerBar * beatTicks;
+  const glyphs = toGlyphs(o.notes, len);
   const height = HEIGHT + (o.solfege && o.label ? SOLFEGE_ROW : 0);
   const svg = el('svg', { class: 'staff', height });
   const ink = 'var(--text)';
@@ -52,17 +56,17 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     x += 8;
   }
   x += 4;
-  for (const [num, step] of [[o.beatsPerBar, 34], [4, 30]]) {
+  const [top, bottom] = timeSignature(o);
+  for (const [num, step] of [[top, 34], [bottom, 30]]) {
     const t = el('text', { x, y: y(step) - 1, 'font-size': 21, 'font-weight': 700, fill: ink }, svg);
     t.textContent = String(num);
   }
   x += 26;
 
-  const len = o.beatsPerBar * TPB;
   const positions: number[] = [];
   const steps: number[] = [];
   const colors: string[] = [];
-  const groups = beamGroups(glyphs);
+  const groups = beamGroups(glyphs, beatTicks);
   const beamed = new Set(groups.flat());
   const cursorX: Record<number, number> = {};
   let accState = new Map<number, number>();
@@ -172,10 +176,10 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
 }
 
 /** 빔으로 묶을 글리프 인덱스 묶음: 같은 마디·같은 박 안에서 이어진 8분 이하 음표 2개 이상 */
-function beamGroups(glyphs: Glyph[]): number[][] {
+function beamGroups(glyphs: Glyph[], beatTicks: number): number[][] {
   const out: number[][] = [];
   let cur: number[] = [];
-  const key = (g: Glyph) => `${g.bar}:${Math.floor(g.start / TPB)}`;
+  const key = (g: Glyph) => `${g.bar}:${Math.floor(g.start / beatTicks)}`;
   const flush = () => { if (cur.length > 1) out.push(cur); cur = []; };
   glyphs.forEach((g, i) => {
     const ok = g.midi !== null && g.value <= 6;

@@ -18,10 +18,20 @@ export interface Problem {
   /** 조표: 양수는 ♯ 개수, 음수는 ♭ 개수 */
   fifths: number;
   beatsPerBar: number;
+  /** 한 박의 틱 수. 홑박자는 12(4분음표), 겹박자(6/8)는 18(점4분음표). 없으면 12 */
+  beatTicks?: number;
   bars: number;
+  /** 4분음표 기준 BPM */
   tempo: number;
   notes: Note[];
 }
+
+/** 한 마디의 틱 수 */
+export const barTicks = (p: Pick<Problem, 'beatsPerBar' | 'beatTicks'>) => p.beatsPerBar * (p.beatTicks ?? TPB);
+
+/** 박자표 [위, 아래]: 겹박자는 8분음표 단위로 적는다 (2박 × 점4분 = 6/8) */
+export const timeSignature = (p: Pick<Problem, 'beatsPerBar' | 'beatTicks'>): [number, number] =>
+  (p.beatTicks ?? TPB) === 18 ? [p.beatsPerBar * 3, 8] : [p.beatsPerBar, 4];
 
 /** 붙임줄을 합친 실제 소리 단위. src는 이 소리를 이루는 Note의 인덱스 */
 export interface SoundEvent {

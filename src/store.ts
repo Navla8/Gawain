@@ -7,11 +7,17 @@ const KEY = 'gawain.v1';
 export interface Attempt {
   at: string;
   problemId: string;
-  answer: Note[];
+  /** 받아쓰기는 적은 음표, 계이름 듣기는 누른 계이름 */
+  answer: Note[] | string[];
   pitchScore: number;
   rhythmScore: number;
   plays: number;
   seconds: number;
+  /** 대련·배치고사에서 푼 단원(기획 M3). 자유 연습은 없음 */
+  skill?: string;
+  placement?: boolean;
+  /** 틀린 요소(계이름 듣기: 틀린 계이름) */
+  miss?: string[];
 }
 
 export interface Data {
@@ -28,6 +34,9 @@ export function load(): Data {
     return { attempts: [], seconds: {} };
   }
 }
+
+/** 시도 하나를 기록한다 */
+export const record = (a: Attempt) => save((d) => d.attempts.push(a));
 
 export function save(update: (d: Data) => void) {
   const d = load();

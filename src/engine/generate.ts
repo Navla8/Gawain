@@ -13,7 +13,7 @@ const RHYTHM: Record<number, { body: number[][]; end: number[][] }> = {
   3: { body: [[12, 12, 12], [24, 12], [12, 24], [12, 6, 6, 12], [6, 6, 12, 12]], end: [[12, 24], [36]] },
 };
 
-function rng(seed: number) {
+export function rng(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;

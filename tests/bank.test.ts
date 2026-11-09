@@ -9,9 +9,9 @@ test('기본 문제집: 2도~6도', () => {
 
 test('모든 문제가 4/4 4마디를 꽉 채우고 건반 음역(F3~C6) 안에 있다', () => {
   for (const s of SETS) for (const p of s.problems) {
-    assert.deepEqual(barProblems(p.notes, 4, 4), [], p.id);
+    assert.deepEqual(barProblems(p.notes, 48, 4), [], p.id);
     assert.ok(p.notes.every((n) => n.midi! >= 53 && n.midi! <= 84), p.id);
-    assert.ok(toGlyphs(p.notes, 4).length >= p.notes.length);
+    assert.ok(toGlyphs(p.notes, 48).length >= p.notes.length);
   }
 });
 

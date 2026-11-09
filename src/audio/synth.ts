@@ -1,4 +1,4 @@
-import { TPB, type Note } from '../engine/types.ts';
+import { TPB, type Note, type Problem } from '../engine/types.ts';
 
 // 외부 음원 파일 없이 Web Audio로 피아노 비슷한 소리를 합성한다 (기획 기술 스택: 소리)
 let ctx: AudioContext | undefined;
@@ -120,15 +120,25 @@ export function playScale(tonic: number, minor = false): number {
   return scale(tonic, minor, c.currentTime + 0.05) - c.currentTime;
 }
 
-/** 조성감 세우기: (첫 재생이면 음계) → 준비박 1마디 → 메트로놈과 함께 선율. 전체 길이(초)를 돌려준다 */
-export function playProblem(notes: Note[], tonic: number, beatsPerBar: number, tempo: number, withScale: boolean, minor = false): number {
+/** 조성감 세우기: (첫 재생이면 음계) → 준비박 1마디 → 메트로놈과 함께 선율. 겹박자는 점4분음표마다 친다. 전체 길이(초)를 돌려준다 */
+export function playProblem(p: Problem, withScale: boolean): number {
   const c = unlockAudio();
   stopAll();
   let t = c.currentTime + 0.05;
-  if (withScale) t = scale(tonic, minor, t);
-  const beat = 60 / tempo;
-  const melodyBeats = Math.ceil(notes.reduce((a, n) => a + n.dur, 0) / TPB);
-  for (let b = 0; b < beatsPerBar + melodyBeats; b++) click(t + b * beat, b % beatsPerBar === 0, b < beatsPerBar ? 0.3 : 0.12);
-  t += beatsPerBar * beat;
-  return playNotes(notes, tempo, t - c.currentTime);
+  if (withScale) t = scale(p.tonic, !!p.minor, t);
+  const beatTicks = p.beatTicks ?? TPB;
+  const beat = (60 / p.tempo) * (beatTicks / TPB);
+  const melodyBeats = Math.ceil(p.notes.reduce((a, n) => a + n.dur, 0) / beatTicks);
+  for (let b = 0; b < p.beatsPerBar + melodyBeats; b++) click(t + b * beat, b % p.beatsPerBar === 0, b < p.beatsPerBar ? 0.3 : 0.12);
+  t += p.beatsPerBar * beat;
+  return playNotes(p.notes, p.tempo, t - c.currentTime);
+}
+
+/** 계이름 듣기: (처음이면 음계) → 잠깐 쉬고 → 음들을 4분음표로. 전체 길이(초)를 돌려준다 */
+export function playDegrees(midis: number[], tonic: number, minor: boolean, withScale: boolean): number {
+  const c = unlockAudio();
+  stopAll();
+  let t = c.currentTime + 0.05;
+  if (withScale) t = scale(tonic, minor, t) + 0.5;
+  return playNotes(midis.map((midi) => ({ midi, dur: TPB })), 72, t - c.currentTime);
 }

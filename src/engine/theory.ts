@@ -38,9 +38,9 @@ export function noteName(midi: number, fifths: number): string {
   return LETTERS[s.letter] + ACC[s.acc] + s.octave;
 }
 
-/** 상대 계이름(으뜸음 = 도): 도 레 미 파 솔 라 티 */
-export function solfa(midi: number, tonic: number, fifths: number): string {
-  const [deg, alt] = degreeOf(midi - tonic, fifths < 0);
+/** 상대 계이름: 도 레 미 파 솔 라 티. 도는 조표로 정하므로 단조 으뜸음은 '라'(기획 §2) */
+export function solfa(midi: number, fifths: number): string {
+  const [deg, alt] = degreeOf(midi - fifths * 7, fifths < 0);
   return SOLFA[deg] + ACC[alt];
 }
 
@@ -66,6 +66,11 @@ export function keyAccidental(letter: number, fifths: number): number {
 }
 
 export const accidentalSymbol = (acc: number) => ACC[acc] || '♮';
+
+/** 조 이름: 'C 장조', 'A 단조' */
+export function keyName(p: { tonic: number; fifths: number; minor?: boolean }): string {
+  return `${noteName(p.tonic, p.fifths).replace(/-?\d+$/, '')} ${p.minor ? '단조' : '장조'}`;
+}
 
 export const KEY_NAMES: Record<number, string> = {
   [-6]: 'G♭', [-5]: 'D♭', [-4]: 'A♭', [-3]: 'E♭', [-2]: 'B♭', [-1]: 'F', 0: 'C', 1: 'G', 2: 'D', 3: 'A', 4: 'E', 5: 'B', 6: 'F♯',
