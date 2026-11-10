@@ -111,6 +111,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
       else {
         notes.splice(cursor, 0, { midi, dur: dur() });
         cursor++;
+        dotted = false; // 점음표는 연달아 찍는 일이 드물어 한 번 쓰면 풀린다
       }
     });
   }
