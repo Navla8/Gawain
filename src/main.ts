@@ -6,10 +6,11 @@ import { generate } from './engine/generate.ts';
 import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from './engine/curriculum.ts';
 import { computeProgress, isDue } from './engine/progress.ts';
 import { planMatch, EST } from './engine/session.ts';
-import { stopAll } from './audio/synth.ts';
+import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
 import { load, merge } from './store.ts';
-import { app, clockText, h, nav, pct, toast } from './ui/dom.ts';
+import { app, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
+import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
 import { startMatch, startPlacement } from './ui/match.ts';
 import { skillsScreen } from './ui/skills.ts';
@@ -85,6 +86,7 @@ function home() {
       return card(`${s.name} 문제집`, sub, () => startSet(s.id), solved / s.problems.length);
     }),
     card('자동 생성', '도~솔 · 으뜸화음 도약', () => practice(generate(Math.floor(Math.random() * 1e9)), home)),
+    card('피아노 룸', '들은 멜로디를 바로 쳐 봐요 · 채점·기록 없음', pianoRoom),
     h('footer', { class: 'backup' },
       h('button', { onclick: exportRecords }, '기록 내보내기'),
       h('button', { onclick: importRecords }, '기록 불러오기'),
@@ -92,6 +94,20 @@ function home() {
   );
 }
 nav.home = home;
+
+/** 피아노 룸: 건반만 있는 화면. 채점·기록이 없고 10분 목표 시간에도 넣지 않는다 */
+function pianoRoom() {
+  stopAll();
+  setCounting(false);
+  const keys = pianoKeys(playKey);
+  app.replaceChildren(
+    header('피아노 룸'),
+    h('p', { class: 'info' }, '채점·기록 없음 · 위 띠를 끌어 음역 이동'),
+    keys.strip,
+    keys.keyboard,
+  );
+  keys.aim(60); // C4부터
+}
 
 /** 자유 연습 한 문제 */
 const practice = (p: Problem, next: () => void) => solve(p, { next });
