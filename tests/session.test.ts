@@ -5,13 +5,16 @@ import { planMatch, stepDown, nextPlacement, placementLeft, frontier, EST, BUDGE
 import { SKILLS, ladder } from '../src/engine/curriculum.ts';
 
 let clock = 0;
-const at = (d: number) => new Date(2026, 10, 1 + d, 12, 0, clock++ % 60).toISOString();
+const at = (d: number) => new Date(2026, 10, 1 + d, 12, 0, 0, clock++).toISOString();
 const masterAll = (ids: string[], d = 0): SkillAttempt[] => ids.flatMap((skill) => [0, 1, 2].map(() => ({ at: at(d), skill, pitchScore: 1, rhythmScore: 1 })));
 
-test('처음에는 L0 계이름 듣기만 낸다', () => {
-  const plan = planMatch(computeProgress([]), '2026-11-01');
-  assert.ok(plan.length >= 8);
-  assert.ok(plan.every((s) => s.track === 'degree' && s.role === 'learn'));
+test('처음에는 유형마다 첫 단원을 익힌다(유형별 진급이라 L0 계이름을 기다리지 않음)', () => {
+  const p = computeProgress([]);
+  const plan = planMatch(p, '2026-11-01');
+  assert.ok(plan.length >= 6);
+  assert.ok(plan.every((s) => s.role === 'learn'));
+  assert.deepEqual(['degree', 'rhythm', 'dictation'].map((t) => frontier(p, t as never)), ['d0a', 'r1', 'm1a']);
+  assert.equal(plan.filter((s) => s.track === 'dictation').length, 3);
 });
 
 test('한 판은 받아쓰기 3문제 + 짧은 문항으로 약 9분', () => {
@@ -28,7 +31,7 @@ test('숙달하고 점검일이 안 된 단원은 내지 않고, 점검일이 �
   const p = computeProgress(masterAll(['d0a', 'd0b', 'd1a', 'd1b', 'r1', 'm1a']));
   const today = planMatch(p, '2026-11-02');
   assert.ok(!today.some((s) => s.role === 'review'));
-  assert.equal(frontier(p, 'degree'), undefined); // L1의 m1b를 마쳐야 L2(d2a)가 열린다
+  assert.equal(frontier(p, 'degree'), 'd2a'); // 다른 유형(m1b)을 기다리지 않고 L2로
   assert.equal(frontier(p, 'dictation'), 'm1b');
   assert.ok(today.filter((s) => s.track === 'dictation').every((s) => s.role === 'learn')); // m1b를 익힘
   const later = planMatch(p, '2026-11-04');
@@ -81,4 +84,16 @@ test('짧은 문항은 약한 유형에 더 많이, 그래도 두 유형 모두'
   const plan = planMatch(computeProgress([...base, ...weak, ...good]), '2026-11-02');
   const n = (t: string) => plan.filter((s) => s.track === t).length;
   assert.ok(n('degree') > n('rhythm') && n('rhythm') >= 1, `계이름 ${n('degree')} 리듬 ${n('rhythm')}`);
+});
+
+test('지금 단원이 약함(점검에서 잊음)이면 짧은 문항을 더 받는다', () => {
+  const base = masterAll(['d0a', 'd0b']);
+  // 계이름 d1a: 숙달(3) 뒤 점검에서 잊음 → 최근 [1,1,1,0] 75%, 약함. 리듬 r1: [1,1,0,1,0] 60%, 익히는 중
+  // 통과율만 보면 리듬이 더 약하지만, 잊은 단원에 가중치가 더 붙어 계이름이 더 많이 나온다
+  const d1a = [1, 1, 1].map(() => ({ at: at(1), skill: 'd1a', pitchScore: 0.85, rhythmScore: 1 }));
+  d1a.push({ at: at(4), skill: 'd1a', pitchScore: 0, rhythmScore: 1 });
+  const r1 = [0.85, 0.85, 0, 0.85, 0].map((x) => ({ at: at(4), skill: 'r1', pitchScore: x, rhythmScore: 1 }));
+  const plan = planMatch(computeProgress([...base, ...d1a, ...r1]), '2026-11-05');
+  const n = (t: string) => plan.filter((s) => s.track === t && s.role === 'learn').length;
+  assert.ok(n('degree') > n('rhythm'), `계이름 ${n('degree')} 리듬 ${n('rhythm')}`);
 });

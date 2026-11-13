@@ -1,5 +1,5 @@
-import { LEVELS, MAX_LEVEL, SKILLS, TRACKS } from '../engine/curriculum.ts';
-import { MASTER_STREAK, RELEARN_STREAK, computeProgress, isDue, unlocked, type Progress } from '../engine/progress.ts';
+import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from '../engine/curriculum.ts';
+import { FAST_STREAK, MASTER_STREAK, RELEARN_STREAK, classify, computeProgress, isDue, type Progress } from '../engine/progress.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll } from '../audio/synth.ts';
@@ -7,7 +7,7 @@ import { load } from '../store.ts';
 import { app, h, header } from './dom.ts';
 import { startPlacement } from './match.ts';
 
-// 실력 화면: 레벨 사다리, 단원별 숙달·점검일, 레벨 기록 (기획 M3)
+// 실력 화면: 레벨 사다리, 단원 분류(쉬움·안정·익히는 중·약함·차례 전)와 점검일, 약한 단원, 레벨 기록 (기획 M3, M4)
 
 const TRACK_NAME = Object.fromEntries(TRACKS.map((t) => [t.id, t.name]));
 const md = (key: string) => `${Number(key.slice(5, 7))}.${Number(key.slice(8, 10))}`;
@@ -34,16 +34,26 @@ export function skillsScreen() {
 
   const state = (id: string) => {
     const st = p.skills[id];
-    if (st.mastered) return isDue(p, id, today)
-      ? h('span', { class: 'due' }, '점검할 때')
-      : h('span', { class: 'ok' }, `숙달 · 점검 ${md(st.due!)}${st.reviews ? ` · ${st.reviews}회 확인` : ''}`);
-    if (!unlocked(p, id)) return h('span', { class: 'locked' }, '잠김');
-    const need = st.lapsed ? RELEARN_STREAK : MASTER_STREAK;
-    return h('span', {}, `익히는 중 `, h('i', { class: 'dots' }, '●'.repeat(st.streak) + '○'.repeat(Math.max(0, need - st.streak))));
+    const c = classify(p, id);
+    const dots = (need: number) => h('i', { class: 'dots' }, '●'.repeat(Math.min(st.streak, need)) + '○'.repeat(Math.max(0, need - st.streak)));
+    if (c === 'easy' || c === 'stable') {
+      const label = c === 'easy' ? '쉬움' : '안정';
+      return isDue(p, id, today)
+        ? h('span', { class: 'due' }, `${label} · 점검할 때`)
+        : h('span', { class: 'ok' }, `${label} · 점검 ${md(st.due!)}${st.reviews ? ` · ${st.reviews}회 확인` : ''}`);
+    }
+    if (c === 'weak') {
+      const rate = `최근 ${st.recent.length}번 중 ${st.recent.filter(Boolean).length}번 통과`;
+      return h('span', { class: 'weak' }, `약함 · ${st.lapsed ? '점검에서 잊음' : rate} `, dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK));
+    }
+    if (c === 'waiting') return h('span', { class: 'locked' }, '차례 전');
+    return h('span', {}, '익히는 중 ', dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK));
   };
+  const weak = SKILLS.filter((s) => classify(p, s.id) === 'weak');
 
   const levels = LEVELS.map((L) => {
-    const status = 'planned' in L ? '준비 중' : doneAt(p, L.level) ? `완료 ${md(doneAt(p, L.level)!)}` : L.level === lv ? '진행 중' : L.level > lv ? '잠김' : '';
+    const started = SKILLS.some((s) => s.level === L.level && classify(p, s.id) !== 'waiting');
+    const status = 'planned' in L ? '준비 중' : doneAt(p, L.level) ? `완료 ${md(doneAt(p, L.level)!)}` : started ? '진행 중' : '차례 전';
     const rows = SKILLS.filter((s) => s.level === L.level).map((s) =>
       h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id)));
     return h('section', { class: 'lvl' + (L.level === lv ? ' current' : '') + ('planned' in L ? ' planned' : '') },
@@ -68,8 +78,13 @@ export function skillsScreen() {
       h('span', {}, LEVELS[lv].name),
       h('div', { class: 'meter' }, h('i', { style: `width:${Math.round((masteredIn / inLevel.length) * 100)}%` })),
       h('small', {}, `이 레벨 ${inLevel.length}단원 중 ${masteredIn}단원 숙달`),
+      h('small', {}, TRACKS.map((t) => `${t.short} ${trackLevelText(p.trackLevels[t.id])}`).join(' · ')),
     ),
-    h('p', { class: 'note' }, `연속 ${MASTER_STREAK}번 통과(80% 이상)하면 숙달이에요. 숙달한 단원은 연습에서 빠지고, 3일 → 7일 → 그 뒤로 14일마다 대련에서 점검해요. 점검에서 틀리면 연습으로 돌아와요.`),
+    weak.length
+      ? h('section', { class: 'changes bad' }, h('h2', {}, '약한 단원 · 대련에서 더 자주 나와요'),
+        ...weak.map((s) => h('p', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), s.name)))
+      : '',
+    h('p', { class: 'note' }, `유형마다 따로 레벨이 올라요. 연속 ${MASTER_STREAK}번 통과(80% 이상)하거나, 95% 이상으로 ${FAST_STREAK}번 연속 맞히면 숙달이에요. 처음 두 번 만에 숙달하면 ‘쉬움’이에요. 숙달한 단원은 연습에서 빠지고, 3일 → 7일 → 그 뒤로 14일마다 대련에서 점검해요. 점검에서 틀리면 ‘약함’으로 연습에 돌아와요.`),
     ...levels,
     history,
     h('div', { class: 'backup' }, h('button', { onclick: startPlacement }, p.placed ? '배치고사 다시 보기' : '배치고사 보기')),

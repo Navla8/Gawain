@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeProgress, unlocked, type SkillAttempt } from '../src/engine/progress.ts';
+import { computeProgress, classify, frontier, FAST_PASS, type SkillAttempt } from '../src/engine/progress.ts';
 import { SKILLS } from '../src/engine/curriculum.ts';
 
 let clock = 0;
-const day = (d: number) => new Date(2026, 10, 1 + d, 12, 0, clock++ % 60).toISOString();
+const day = (d: number) => new Date(2026, 10, 1 + d, 12, 0, 0, clock++).toISOString();
 const att = (d: number, skill: string, score: number, extra: Partial<SkillAttempt> = {}): SkillAttempt =>
   ({ at: day(d), skill, pitchScore: score, rhythmScore: 1, ...extra });
 
 test('연속 3번 통과하면 숙달, 3일 뒤 첫 점검', () => {
-  const p = computeProgress([att(0, 'd0a', 1), att(0, 'd0a', 1), att(0, 'd0a', 0.5), att(0, 'd0a', 1), att(0, 'd0a', 1)]);
+  const p = computeProgress([att(0, 'd0a', 0.85), att(0, 'd0a', 0.85), att(0, 'd0a', 0.5), att(0, 'd0a', 0.85), att(0, 'd0a', 0.85)]);
   assert.equal(p.skills.d0a.mastered, false);
-  const q = computeProgress([att(0, 'd0a', 1), att(0, 'd0a', 0.5), att(0, 'd0a', 1), att(0, 'd0a', 1), att(0, 'd0a', 1)]);
+  const q = computeProgress([att(0, 'd0a', 0.85), att(0, 'd0a', 0.5), att(0, 'd0a', 0.85), att(0, 'd0a', 0.85), att(0, 'd0a', 0.85)]);
   assert.equal(q.skills.d0a.mastered, true);
   assert.equal(q.skills.d0a.due, '2026-11-04');
 });
@@ -57,21 +57,54 @@ test('배치고사 통과는 그 단원과 아래 단원을 숙달로 본다', (
   assert.equal(p.level, 1); // r1을 못 해서 L1이 남았다
 });
 
-test('레벨: 아래 레벨을 다 숙달해야 다음 레벨 단원이 열리고, 레벨이 바뀐 때가 남는다', () => {
+test('레벨은 유형마다 따로 오르고, 전체 레벨은 가장 낮은 유형 레벨이다', () => {
   const p0 = computeProgress([]);
   assert.equal(p0.level, 0);
-  assert.ok(unlocked(p0, 'd0b'));
-  assert.ok(!unlocked(p0, 'm1a'));
-  const l0 = SKILLS.filter((s) => s.level === 0).flatMap((s) => [0, 0, 0].map(() => att(1, s.id, 1)));
-  const p1 = computeProgress(l0);
+  assert.deepEqual(p0.trackLevels, { degree: 0, rhythm: 1, dictation: 1 });
+  // 계이름만 L0·L1을 다 숙달해도 L2 계이름 단원으로 넘어간다(다른 유형에 막히지 않음)
+  const deg = ['d0a', 'd0b', 'd1a', 'd1b'].flatMap((id) => [0, 0, 0].map(() => att(1, id, 1)));
+  const p1 = computeProgress(deg);
+  assert.deepEqual(p1.trackLevels, { degree: 2, rhythm: 1, dictation: 1 });
   assert.equal(p1.level, 1);
-  assert.ok(unlocked(p1, 'm1a'));
-  assert.ok(!unlocked(p1, 'm2a'));
+  assert.equal(frontier(p1, 'degree'), 'd2a');
+  assert.equal(frontier(p1, 'dictation'), 'm1a');
   assert.equal(p1.history.length, 1);
   assert.equal(p1.history[0].level, 1);
   // 받아쓰기는 음높이·리듬 중 낮은 쪽이 80% 이상이어야 통과
-  const p2 = computeProgress([...l0, ...[0, 0, 0].map(() => ({ at: day(2), skill: 'm1a', pitchScore: 1, rhythmScore: 0.7 }))]);
+  const p2 = computeProgress([...deg, ...[0, 0, 0].map(() => ({ at: day(2), skill: 'm1a', pitchScore: 1, rhythmScore: 0.7 }))]);
   assert.equal(p2.skills.m1a.mastered, false);
+});
+
+test('빠른 통과: 95% 이상을 연속 2번이면 숙달', () => {
+  assert.equal(FAST_PASS, 0.95);
+  const p = computeProgress([att(0, 'd0a', 1), att(0, 'd0a', 0.96)]);
+  assert.equal(p.skills.d0a.mastered, true);
+  assert.equal(p.skills.d0a.due, '2026-11-04');
+  // 95% 미만 통과가 끼면 빠른 통과 연속은 끊기고 보통 경로(연속 3번)로 숙달
+  const q = computeProgress([att(0, 'd0a', 1), att(0, 'd0a', 0.9), att(0, 'd0a', 1)]);
+  assert.equal(q.skills.d0a.mastered, true);
+  const r = computeProgress([att(0, 'd0a', 0.5), att(0, 'd0a', 1), att(0, 'd0a', 1)]);
+  assert.equal(r.skills.d0a.mastered, true); // 처음이 아니어도 언제든
+  const s = computeProgress([att(0, 'd0a', 0.9), att(0, 'd0a', 0.9)]);
+  assert.equal(s.skills.d0a.mastered, false);
+});
+
+test('단원 분류: 쉬움·안정·익히는 중·약함·차례 전', () => {
+  const easy = computeProgress([att(0, 'd0a', 1), att(0, 'd0a', 1)]);
+  assert.equal(classify(easy, 'd0a'), 'easy');
+  assert.equal(classify(easy, 'd0b'), 'learning'); // 계이름의 지금 단원
+  assert.equal(classify(easy, 'd1a'), 'waiting');
+  // 처음 두 번이 아니라 나중에 빠른 통과·보통 경로로 숙달하면 안정
+  assert.equal(classify(computeProgress([att(0, 'd0a', 0.5), att(0, 'd0a', 1), att(0, 'd0a', 1)]), 'd0a'), 'stable');
+  assert.equal(classify(computeProgress([0, 0, 0].map(() => att(0, 'd0a', 0.85))), 'd0a'), 'stable');
+  // 점검에서 잊으면 약함, 다시 익히면 안정(쉬움으로 돌아가지 않음)
+  const lapse = [att(0, 'd0a', 1), att(0, 'd0a', 1), att(3, 'd0a', 0.3)];
+  assert.equal(classify(computeProgress(lapse), 'd0a'), 'weak');
+  assert.equal(classify(computeProgress([...lapse, att(3, 'd0a', 0.85), att(3, 'd0a', 0.85)]), 'd0a'), 'stable');
+  // 최근 4번 이상에 통과율 50% 미만이면 약함
+  const low = [0.3, 0.85, 0.3, 0.3].map((x) => att(0, 'd0a', x));
+  assert.equal(classify(computeProgress(low.slice(0, 3)), 'd0a'), 'learning');
+  assert.equal(classify(computeProgress(low), 'd0a'), 'weak');
 });
 
 test('모르는 단원 id나 단원 없는 기록은 무시한다', () => {

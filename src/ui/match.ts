@@ -1,4 +1,4 @@
-import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill } from '../engine/curriculum.ts';
+import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill, trackLevelText } from '../engine/curriculum.ts';
 import { computeProgress, weakness, type Progress } from '../engine/progress.ts';
 import { MAX_TOTAL, frontier, nextPlacement, placementLeft, planMatch, stepDown, type Slot } from '../engine/session.ts';
 import { degreeItem, minorMelody, rhythmItem } from '../engine/drills.ts';
@@ -112,6 +112,8 @@ function summary(run: Run) {
   const lost = ids.filter((x) => b[x].mastered && !a[x].mastered);
   const passedN = run.log.filter((l) => l.ok).length;
   const up = after.level > run.before.level, down = after.level < run.before.level;
+  // 전체 레벨은 그대로여도 유형 레벨이 오르면 축하한다(유형별 진급, 기획 M4.1)
+  const trackUps = TRACKS.filter((t) => after.trackLevels[t.id] > run.before.trackLevels[t.id]);
   const lv = Math.min(after.level, MAX_LEVEL);
   const name = (x: string) => skill(x)!.name;
   const list = (title: string, xs: string[], cls = '') => xs.length
@@ -124,7 +126,11 @@ function summary(run: Run) {
       ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'), h('b', {}, `Level ${lv}`), h('span', {}, after.level > MAX_LEVEL ? 'L0~L3을 모두 마쳤어요' : levelName(lv)))
       : down
         ? h('section', { class: 'leveldown' }, h('b', {}, `Level ${lv}`), h('span', {}, '잊은 단원을 다시 익히면 돌아가요'))
-        : '';
+        : trackUps.length
+          ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'),
+            ...trackUps.map((t) => h('b', {}, `${t.short} ${trackLevelText(after.trackLevels[t.id])}`)),
+            h('span', {}, trackUps.map((t) => t.name).join(' · ') + ' 레벨이 올랐어요'))
+          : '';
 
   const placementRows = run.kind === 'placement'
     ? h('section', { class: 'changes' }, h('h2', {}, '유형별 출발점'), ...TRACKS.map((t) => {
@@ -151,5 +157,5 @@ function summary(run: Run) {
       h('button', { class: 'half', onclick: startMatch }, '한 판 더'),
     ),
   );
-  if (up || run.kind === 'placement') playNotes([{ midi: 72, dur: 6 }, { midi: 76, dur: 6 }, { midi: 79, dur: 6 }, { midi: 84, dur: 18 }], 110);
+  if (up || trackUps.length || run.kind === 'placement') playNotes([{ midi: 72, dur: 6 }, { midi: 76, dur: 6 }, { midi: 79, dur: 6 }, { midi: 84, dur: 18 }], 110);
 }

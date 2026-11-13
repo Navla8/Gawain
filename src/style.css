@@ -364,6 +364,7 @@ h2 { margin: 8px 0 -4px; font-family: var(--font-mono); font-size: 12px; color: 
 .lvl li > span:last-child { grid-column: 2; color: var(--muted); font-size: 12px; }
 .lvl li .ok { color: var(--accent-text); }
 .lvl li .due { color: var(--signal-caution); }
+.lvl li .weak { color: var(--signal-danger); }
 .lvl li .locked { opacity: 0.6; }
 .dots { font-style: normal; letter-spacing: 2px; color: var(--accent-text); }
 .history { display: flex; flex-direction: column; border-top: 1px solid var(--line); padding-top: 8px; }

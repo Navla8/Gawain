@@ -12,11 +12,14 @@ export interface Skill {
   set?: string;
 }
 
-export const TRACKS: { id: Track; name: string }[] = [
-  { id: 'degree', name: '계이름 듣기' },
-  { id: 'rhythm', name: '리듬 받아쓰기' },
-  { id: 'dictation', name: '선율 받아쓰기' },
+export const TRACKS: { id: Track; name: string; short: string }[] = [
+  { id: 'degree', name: '계이름 듣기', short: '계이름' },
+  { id: 'rhythm', name: '리듬 받아쓰기', short: '리듬' },
+  { id: 'dictation', name: '선율 받아쓰기', short: '선율' },
 ];
+
+/** 유형 레벨 표시: 구현된 레벨을 모두 마쳤으면 '완료' */
+export const trackLevelText = (l: number) => (l > MAX_LEVEL ? '완료' : `L${l}`);
 
 export const LEVELS = [
   { level: 0, name: '조성감', goal: '으뜸음을 기준으로 도·레·미를 구분한다' },

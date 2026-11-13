@@ -1,5 +1,7 @@
 import { TRACKS, ladder, type Track } from './curriculum.ts';
-import { isDue, unlocked, type Progress } from './progress.ts';
+import { classify, frontier, isDue, type Progress } from './progress.ts';
+
+export { frontier };
 
 // 대련(원터치 통합 테스트)과 배치고사의 문항 구성 (기획 M3)
 
@@ -21,11 +23,6 @@ const MAX_ITEMS = 10;
 export const MAX_TOTAL = 13;
 /** 한 판에 받아쓰기는 3문제(메인) */
 const DICTATION = 3;
-
-/** 이 유형에서 지금 익힐 단원: 열린 단원 중 숙달하지 않은 가장 쉬운 것 */
-export function frontier(p: Progress, track: Track): string | undefined {
-  return ladder(track).find((s) => unlocked(p, s.id) && !p.skills[s.id].mastered)?.id;
-}
 
 /** 이 유형에서 숙달한 가장 어려운 단원 */
 const topMastered = (p: Progress, track: Track) => ladder(track).filter((s) => p.skills[s.id].mastered).at(-1)?.id;
@@ -57,8 +54,8 @@ export function planMatch(p: Progress, today: string): Slot[] {
     const n = DICTATION - reviews.filter((s) => s.track === 'dictation').length;
     for (let i = 0; i < n; i++) add('dictation');
   }
-  // 짧은 문항: 지금 단원의 최근 통과율이 낮은 유형일수록 자주
-  const weight = (t: Track) => 1.5 - passRate(p, frontier(p, t)!);
+  // 짧은 문항: 지금 단원의 최근 통과율이 낮은 유형일수록, 약함(기획 M4.3)이면 더 자주
+  const weight = (t: Track) => { const id = frontier(p, t)!; return 1.5 - passRate(p, id) + (classify(p, id) === 'weak' ? 0.5 : 0); };
   while (open.length && reviews.length + learn.length < MAX_ITEMS && time < BUDGET) {
     const pool = shorts.length ? shorts : open;
     // 가중치 대비 지금까지 받은 문항이 가장 적은 유형에 하나씩(약할수록 많이, 그래도 고르게)

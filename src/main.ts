@@ -3,7 +3,7 @@ import { SETS, pickRandom, findProblem } from './engine/bank.ts';
 import { GOAL_SECONDS, addDays, dayKey, dayStatus, reviewIds, streak } from './engine/habit.ts';
 import { setCounting, startActivityClock } from './activity.ts';
 import { generate } from './engine/generate.ts';
-import { LEVELS, MAX_LEVEL, SKILLS } from './engine/curriculum.ts';
+import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from './engine/curriculum.ts';
 import { computeProgress, isDue } from './engine/progress.ts';
 import { planMatch, EST } from './engine/session.ts';
 import { stopAll } from './audio/synth.ts';
@@ -53,6 +53,7 @@ function home() {
       h('span', { class: 'lv-text' },
         h('strong', {}, p.level > MAX_LEVEL ? 'L0~L3 완료' : LEVELS[lv].name),
         h('span', {}, fresh ? '배치고사 전' : `${inLevel.length}단원 중 ${masteredIn} 숙달` + (due ? ` · 점검할 단원 ${due}` : '')),
+        fresh ? '' : h('span', {}, TRACKS.map((t) => `${t.short} ${trackLevelText(p.trackLevels[t.id])}`).join(' · ')),
         h('div', { class: 'meter' }, h('i', { style: `width:${Math.round((masteredIn / inLevel.length) * 100)}%` })),
       ),
       h('em', { class: 'chev' }, '›'),
