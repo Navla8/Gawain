@@ -35,8 +35,8 @@ function home() {
     return h('button', { class: cls, onclick }, h('strong', {}, title), h('em', { class: 'chev' }, '›'), h('span', {}, sub), meter);
   };
 
-  // 대련: 처음이면 배치고사부터
-  const fresh = !p.placed && !d.attempts.some((a) => a.skill);
+  // 대련: 처음이면 배치고사부터. 배치고사를 중간에 그만뒀으면 다시 배치고사
+  const fresh = !p.placed && !d.attempts.some((a) => a.skill && !a.placement);
   const plan = planMatch(p, today);
   const mins = Math.round(plan.reduce((a, s) => a + EST[s.track], 0) / 60);
   const reviews = plan.filter((s) => s.role === 'review').length;

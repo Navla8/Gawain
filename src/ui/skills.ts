@@ -44,7 +44,9 @@ export function skillsScreen() {
     }
     if (c === 'weak') {
       const rate = `최근 ${st.recent.length}번 중 ${st.recent.filter(Boolean).length}번 통과`;
-      return h('span', { class: 'weak' }, `약함 · ${st.lapsed ? '점검에서 잊음' : rate} `, dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK));
+      // 잊은 날에는 다시 숙달하지 않는다(progress.ts). 점이 다 차도 내일 한 번 더 맞혀야 한다
+      const later = st.lapsedOn === today ? ' · 내일부터 다시 숙달돼요' : '';
+      return h('span', { class: 'weak' }, `약함 · ${st.lapsed ? '점검에서 잊음' : rate} `, dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK), later);
     }
     if (c === 'waiting') return h('span', { class: 'locked' }, '차례 전');
     return h('span', {}, '익히는 중 ', dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK));

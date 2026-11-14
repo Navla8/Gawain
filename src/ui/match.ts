@@ -6,7 +6,7 @@ import { pickForSkill } from '../engine/bank.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll, playNotes } from '../audio/synth.ts';
-import { load } from '../store.ts';
+import { load, save } from '../store.ts';
 import { app, h, header, nav } from './dom.ts';
 import { solve, type ItemCtx } from './dictation.ts';
 import { degreeScreen } from './degree.ts';
@@ -84,6 +84,10 @@ function show(run: Run, slot: Slot, step: [number, number]) {
     step,
     onGraded: (ok) => {
       run.log.push({ slot, skill: id, ok });
+      // 배치고사는 마지막 문항까지 채점돼야 배치 완료다. 방금 남긴 시도에 끝 표시를 단다
+      if (run.kind === 'placement' && !nextPlacement(run.log.map((l) => ({ skill: l.skill, ok: l.ok })))) {
+        save((d) => { const last = d.attempts.at(-1); if (last?.placement) last.placementEnd = true; });
+      }
       // 점검에서 틀리면 한 단계 쉬운 숙달 단원으로 바로 다시 점검한다
       if (!ok && (slot.role === 'review' || slot.role === 'check') && run.slots.length < MAX_TOTAL) {
         const down = stepDown(progressNow(), slot);

@@ -16,6 +16,8 @@ export interface Attempt {
   /** 대련·배치고사에서 푼 단원(기획 M3). 자유 연습은 없음 */
   skill?: string;
   placement?: boolean;
+  /** 배치고사 마지막 문항(끝까지 봄) */
+  placementEnd?: boolean;
   /** 틀린 요소(계이름 듣기: 틀린 계이름) */
   miss?: string[];
 }

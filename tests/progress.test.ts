@@ -37,8 +37,27 @@ test('점검일 전에 통과해도 간격이 늘지 않는다', () => {
 test('숙달한 단원을 틀리면 연습으로 돌아가고, 다시 익힐 때는 2번이면 된다', () => {
   const a = [att(0, 'd0a', 1), att(0, 'd0a', 1), att(0, 'd0a', 1), att(3, 'd0a', 0.3)];
   assert.equal(computeProgress(a).skills.d0a.mastered, false);
-  a.push(att(3, 'd0a', 1), att(3, 'd0a', 1));
+  a.push(att(4, 'd0a', 1), att(4, 'd0a', 1));
   assert.equal(computeProgress(a).skills.d0a.mastered, true);
+});
+
+test('잊은 날에는 몇 번을 맞혀도 다시 숙달하지 않고, 다음 날 한 번 더 맞히면 숙달', () => {
+  // 대련 점검에서 틀린 뒤 같은 판의 연습 문항으로 다시 맞힌 경우(실기기 2026-11-14)
+  const a = [att(0, 'd2c', 1, { placement: true }), att(3, 'd2c', 0.5), att(3, 'd2c', 1), att(3, 'd2c', 1), att(3, 'd2c', 1)];
+  const p = computeProgress(a);
+  assert.equal(p.skills.d2c.mastered, false);
+  assert.equal(classify(p, 'd2c'), 'weak');
+  a.push(att(4, 'd2c', 1));
+  assert.equal(computeProgress(a).skills.d2c.mastered, true);
+});
+
+test('배치고사는 끝 표시가 있어야 본 것으로 친다(그 전 기록은 본 것으로)', () => {
+  const at = (d: string) => new Date(`${d}T12:00:00`).toISOString();
+  const part = [{ at: at('2026-11-20'), skill: 'd2a', placement: true, pitchScore: 1, rhythmScore: 1 }];
+  assert.equal(computeProgress(part).placed, false);
+  assert.ok(computeProgress(part).skills.d2a.mastered); // 푼 문항은 그대로 반영
+  assert.ok(computeProgress([...part, { at: at('2026-11-20'), skill: 'r1', placement: true, placementEnd: true, pitchScore: 1, rhythmScore: 1 }]).placed);
+  assert.ok(computeProgress([{ ...part[0], at: at('2026-11-13') }]).placed);
 });
 
 test('어려운 단원을 맞히면 점검일이 된 아래 단원도 확인된다', () => {
@@ -100,7 +119,7 @@ test('단원 분류: 쉬움·안정·익히는 중·약함·차례 전', () => {
   // 점검에서 잊으면 약함, 다시 익히면 안정(쉬움으로 돌아가지 않음)
   const lapse = [att(0, 'd0a', 1), att(0, 'd0a', 1), att(3, 'd0a', 0.3)];
   assert.equal(classify(computeProgress(lapse), 'd0a'), 'weak');
-  assert.equal(classify(computeProgress([...lapse, att(3, 'd0a', 0.85), att(3, 'd0a', 0.85)]), 'd0a'), 'stable');
+  assert.equal(classify(computeProgress([...lapse, att(4, 'd0a', 0.85), att(4, 'd0a', 0.85)]), 'd0a'), 'stable');
   // 최근 4번 이상에 통과율 50% 미만이면 약함
   const low = [0.3, 0.85, 0.3, 0.3].map((x) => att(0, 'd0a', x));
   assert.equal(classify(computeProgress(low.slice(0, 3)), 'd0a'), 'learning');

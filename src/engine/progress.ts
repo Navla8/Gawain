@@ -19,10 +19,15 @@ export const FAST_STREAK = 2;
 export const WEAK_MIN = 4;
 export const WEAK_RATE = 0.5;
 
+/** 이날부터 배치고사 끝 표시를 남긴다. 그 전 기록의 배치고사는 끝까지 봤는지 알 수 없어 본 것으로 친다 */
+const PLACEMENT_END_SINCE = '2026-11-14';
+
 export interface SkillAttempt {
   at: string;
   skill?: string;
   placement?: boolean;
+  /** 배치고사 마지막 문항: 배치고사를 끝까지 봤다는 표시 */
+  placementEnd?: boolean;
   pitchScore: number;
   rhythmScore: number;
   /** 틀린 요소(계이름 듣기는 틀린 계이름) */
@@ -43,6 +48,8 @@ export interface SkillState {
   due?: string;
   /** 숙달했다가 점검에서 틀린 적이 있음 */
   lapsed: boolean;
+  /** 마지막으로 잊은 날. 이날에는 다시 숙달하지 않는다(같은 날 다시 맞힌 것은 단기 기억이라서) */
+  lapsedOn?: string;
   tries: number;
   /** 최근 6번의 통과(1)·실패(0) */
   recent: number[];
@@ -57,7 +64,7 @@ export interface Progress {
   trackLevels: Record<Track, number>;
   /** 레벨이 바뀐 시각들 */
   history: { at: string; level: number }[];
-  /** 배치고사를 본 적 있음 */
+  /** 배치고사를 끝까지 본 적 있음 */
   placed: boolean;
 }
 
@@ -75,8 +82,8 @@ function reviewed(st: SkillState, day: string) {
   st.due = addDays(day, INTERVALS[st.reviews]);
 }
 
-function forgot(st: SkillState) {
-  Object.assign(st, { mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, due: undefined, lapsed: true });
+function forgot(st: SkillState, day: string) {
+  Object.assign(st, { mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, due: undefined, lapsed: true, lapsedOn: day });
 }
 
 function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
@@ -91,11 +98,11 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
   if (a.placement) {
     // 배치고사 통과는 그 단원과 아래 단원을 모두 숙달로 본다. 3일 뒤 첫 점검이 진짜 확인이다
     if (ok) for (const x of [...lower, s]) { if (!skills[x.id].mastered) master(skills[x.id], day); }
-    else if (st.mastered) forgot(st);
+    else if (st.mastered) forgot(st, day);
     return;
   }
   if (!ok) {
-    if (st.mastered) forgot(st);
+    if (st.mastered) forgot(st, day);
     else st.streak = st.fast = 0;
     return;
   }
@@ -104,7 +111,8 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
   } else {
     st.fast = attemptScore(a) >= FAST_PASS ? st.fast + 1 : 0;
     const quick = st.fast >= FAST_STREAK;
-    if (++st.streak >= (st.lapsed ? RELEARN_STREAK : MASTER_STREAK) || quick) {
+    // 잊은 날에 맞힌 것도 연속 통과로 쌓되, 다시 숙달은 다음 날부터
+    if ((++st.streak >= (st.lapsed ? RELEARN_STREAK : MASTER_STREAK) || quick) && st.lapsedOn !== day) {
       const easy = quick && st.tries <= FAST_STREAK && !st.lapsed;
       master(st, day);
       st.easy = easy;
@@ -133,7 +141,7 @@ export function computeProgress(attempts: SkillAttempt[]): Progress {
   const list = attempts.filter((a) => a.skill && skill(a.skill)).sort((x, y) => x.at.localeCompare(y.at));
   for (const a of list) {
     apply(skills, a);
-    placed ||= !!a.placement;
+    placed ||= !!a.placementEnd || (!!a.placement && dayKey(new Date(a.at)) < PLACEMENT_END_SINCE);
     const l = levels(skills).level;
     if (l !== level) history.push({ at: a.at, level: (level = l) });
   }
