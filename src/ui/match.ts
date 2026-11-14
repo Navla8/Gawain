@@ -1,8 +1,8 @@
 import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill, trackLevelText } from '../engine/curriculum.ts';
 import { computeProgress, weakness, type Progress } from '../engine/progress.ts';
-import { MAX_TOTAL, frontier, nextPlacement, placementLeft, planMatch, stepDown, type Slot } from '../engine/session.ts';
-import { degreeItem, minorMelody, rhythmItem } from '../engine/drills.ts';
-import { pickForSkill } from '../engine/bank.ts';
+import { MAX_TOTAL, frontier, learnUnit, nextPlacement, placementLeft, planMatch, stepDown, type Slot } from '../engine/session.ts';
+import { degreeItem, rhythmItem } from '../engine/drills.ts';
+import { melodyItem } from '../engine/melody.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll, playNotes } from '../audio/synth.ts';
@@ -66,7 +66,7 @@ function next(run: Run) {
       if (s.skill) { slot = s; break; }
       const p = progressNow();
       // 짧은 문항 자리는 다른 짧은 유형으로만 바꾼다(받아쓰기로 채우면 한 판이 너무 길어짐)
-      const id = frontier(p, s.track) ?? (s.track === 'dictation' ? undefined : TRACKS.filter((t) => t.id !== 'dictation').map((t) => frontier(p, t.id)).find(Boolean));
+      const id = learnUnit(p, s.track) ?? (s.track === 'dictation' ? undefined : TRACKS.filter((t) => t.id !== 'dictation').map((t) => learnUnit(p, t.id)).find(Boolean));
       if (id) { slot = { ...s, track: skill(id)!.track, skill: id }; break; }
       run.slots.splice(run.i, 1);
     }
@@ -100,7 +100,7 @@ function show(run: Run, slot: Slot, step: [number, number]) {
   const s = skill(id)!;
   if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weakness(attempts, id)), ctx);
   else if (s.track === 'rhythm') solve(rhythmItem(id, seed()), { ...ctx, rhythm: true });
-  else solve(s.set ? pickForSkill(s.set, attempts, Math.random) : minorMelody(seed()), ctx);
+  else solve(melodyItem(id, seed(), s.name), ctx);
 }
 
 const ROLE: Record<string, string> = { learn: '연습', review: '점검', check: '확인', placement: '배치' };

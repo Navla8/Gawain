@@ -1,7 +1,14 @@
-import { TRACKS, ladder, type Track } from './curriculum.ts';
-import { classify, frontier, isDue, type Progress } from './progress.ts';
+import { TRACKS, ladder, skill, type Track } from './curriculum.ts';
+import { blocker, classify, frontier, isDue, type Progress } from './progress.ts';
 
 export { frontier };
+
+/** 익히기 자리에 낼 단원: 그 유형의 지금 단원. 선수 단원이 남았으면 그 선수 단원 유형의 지금 단원(기획 §M5.5) */
+export function learnUnit(p: Progress, track: Track): string | undefined {
+  const id = frontier(p, track);
+  const b = id && blocker(p, id);
+  return b ? frontier(p, skill(b)!.track) : id;
+}
 
 // 대련(원터치 통합 테스트)과 배치고사의 문항 구성 (기획 M3)
 
@@ -38,7 +45,9 @@ export function planMatch(p: Progress, today: string): Slot[] {
   // 망각 점검: 점검일이 된 단원이 있는 유형마다, 그 유형에서 숙달한 가장 어려운 단원으로 한 문항
   const reviews: Slot[] = TRACKS.filter((t) => ladder(t.id).some((s) => isDue(p, s.id, today)))
     .map((t) => ({ track: t.id, role: 'review' as const, skill: topMastered(p, t.id)! }));
-  const open = TRACKS.map((t) => t.id).filter((t) => frontier(p, t));
+  // 선수 단원이 남은 받아쓰기는 열지 않고, 그 선수 단원 유형에 짧은 문항을 더 준다
+  const waitOn = TRACKS.map((t) => frontier(p, t.id)).map((id) => id && blocker(p, id)).filter(Boolean).map((b) => skill(b!)!.track);
+  const open = TRACKS.map((t) => t.id).filter((t) => { const id = frontier(p, t); return id && !blocker(p, id); });
 
   if (!reviews.length && !open.length) {
     // 구현된 단원을 모두 숙달했고 점검할 것도 없다: 각 유형의 가장 어려운 단원으로 실력 확인
@@ -55,7 +64,7 @@ export function planMatch(p: Progress, today: string): Slot[] {
     for (let i = 0; i < n; i++) add('dictation');
   }
   // 짧은 문항: 지금 단원의 최근 통과율이 낮은 유형일수록, 약함(기획 M4.3)이면 더 자주
-  const weight = (t: Track) => { const id = frontier(p, t)!; return 1.5 - passRate(p, id) + (classify(p, id) === 'weak' ? 0.5 : 0); };
+  const weight = (t: Track) => { const id = frontier(p, t)!; return 1.5 - passRate(p, id) + (classify(p, id) === 'weak' ? 0.5 : 0) + (waitOn.includes(t) ? 1 : 0); };
   while (open.length && reviews.length + learn.length < MAX_ITEMS && time < BUDGET) {
     const pool = shorts.length ? shorts : open;
     // 가중치 대비 지금까지 받은 문항이 가장 적은 유형에 하나씩(약할수록 많이, 그래도 고르게)

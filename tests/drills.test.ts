@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { degreeItem, rhythmItem, minorMelody, degreeName } from '../src/engine/drills.ts';
+import { degreeItem, rhythmItem, degreeName } from '../src/engine/drills.ts';
 import { ladder } from '../src/engine/curriculum.ts';
 import { barProblems, toEvents } from '../src/engine/score.ts';
 import { barTicks } from '../src/engine/types.ts';
@@ -51,19 +51,4 @@ test('리듬 받아쓰기: 2마디를 꽉 채우고, 그 단원의 새 리듬이
     if (s.id === 'r3c') assert.equal(p.beatTicks, 18);
   }
   assert.ok(rhythmItem('r1', 3).notes.every((n) => [12, 24, 48].includes(n.dur)));
-});
-
-test('단조 선율: 라 으뜸, 라·도·미에서 시작해 으뜸음으로 끝나고, 라\'로 갈 때만 솔♯', () => {
-  for (let seed = 1; seed <= 500; seed++) {
-    const p = minorMelody(seed);
-    assert.ok(p.minor);
-    assert.equal(pc(p.tonic), pc(p.fifths * 7 + 9), `${seed}: 으뜸음`);
-    assert.deepEqual(barProblems(p.notes, barTicks(p), p.bars), [], `${seed}: 마디`);
-    const rel = toEvents(p.notes).map((e) => e.midi! - p.tonic);
-    assert.ok([0, 3, 7].includes(rel[0]), `${seed}: 시작음 ${rel[0]}`);
-    assert.ok([0, 12].includes(rel.at(-1)!), `${seed}: 끝음`);
-    assert.ok(rel.every((r) => [0, 2, 3, 5, 7, 8, 10, 11, 12].includes(r)), `${seed}: 음계 밖`);
-    rel.forEach((r, i) => { if (r === 11) assert.equal(rel[i + 1], 12, `${seed}: 솔♯ 다음은 라'`); });
-    assert.ok(p.notes.every((n) => n.midi! >= 53 && n.midi! <= 84), `${seed}: 건반 음역`);
-  }
 });

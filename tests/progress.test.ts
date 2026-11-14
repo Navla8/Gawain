@@ -51,13 +51,13 @@ test('잊은 날에는 몇 번을 맞혀도 다시 숙달하지 않고, 다음 �
   assert.equal(computeProgress(a).skills.d2c.mastered, true);
 });
 
-test('배치고사는 끝 표시가 있어야 본 것으로 친다(그 전 기록은 본 것으로)', () => {
+test('배치고사는 끝 표시가 있어야 본 것으로 친다(끝 표시 없는 예전 배치고사도 다시 본다)', () => {
   const at = (d: string) => new Date(`${d}T12:00:00`).toISOString();
   const part = [{ at: at('2026-11-20'), skill: 'd2a', placement: true, pitchScore: 1, rhythmScore: 1 }];
   assert.equal(computeProgress(part).placed, false);
   assert.ok(computeProgress(part).skills.d2a.mastered); // 푼 문항은 그대로 반영
   assert.ok(computeProgress([...part, { at: at('2026-11-20'), skill: 'r1', placement: true, placementEnd: true, pitchScore: 1, rhythmScore: 1 }]).placed);
-  assert.ok(computeProgress([{ ...part[0], at: at('2026-11-13') }]).placed);
+  assert.equal(computeProgress([{ ...part[0], at: at('2026-11-13') }]).placed, false);
 });
 
 test('어려운 단원을 맞히면 점검일이 된 아래 단원도 확인된다', () => {
@@ -69,11 +69,20 @@ test('어려운 단원을 맞히면 점검일이 된 아래 단원도 확인된�
 });
 
 test('배치고사 통과는 그 단원과 아래 단원을 숙달로 본다', () => {
-  const p = computeProgress([att(0, 'd2a', 1, { placement: true }), att(0, 'm1b', 0.9, { placement: true }), att(0, 'r2a', 0.2, { placement: true })]);
-  for (const id of ['d0a', 'd0b', 'd1a', 'd1b', 'd2a', 'm1a', 'm1b']) assert.equal(p.skills[id].mastered, true, id);
-  for (const id of ['d2b', 'r1', 'r2a', 'm2a']) assert.equal(p.skills[id].mastered, false, id);
+  const p = computeProgress([att(0, 'd2a', 1, { placement: true }), att(0, 'g1b', 0.9, { placement: true }), att(0, 'r2a', 0.2, { placement: true, placementEnd: true })]);
+  for (const id of ['d0a', 'd0b', 'd1a', 'd1b', 'd2a', 'g1a', 'g1b']) assert.equal(p.skills[id].mastered, true, id);
+  for (const id of ['d2b', 'r1', 'r2a', 'g1c']) assert.equal(p.skills[id].mastered, false, id);
   assert.ok(p.placed);
   assert.equal(p.level, 1); // r1을 못 해서 L1이 남았다
+});
+
+test('배치고사를 다시 보면 틀린 단원과 그 위 단원은 숙달 전으로(잊음은 아님)', () => {
+  const before = ['d0a', 'd0b', 'd1a', 'd1b', 'd2a'].flatMap((id) => [0, 0, 0].map(() => att(0, id, 1)));
+  const p = computeProgress([...before, att(5, 'd1a', 0, { placement: true })]);
+  for (const id of ['d0a', 'd0b']) assert.equal(p.skills[id].mastered, true, id);
+  for (const id of ['d1a', 'd1b', 'd2a']) assert.equal(p.skills[id].mastered, false, id);
+  assert.equal(classify(p, 'd2a'), 'waiting');
+  assert.equal(p.skills.d1a.lapsed, false);
 });
 
 test('레벨은 유형마다 따로 오르고, 전체 레벨은 가장 낮은 유형 레벨이다', () => {
@@ -86,12 +95,12 @@ test('레벨은 유형마다 따로 오르고, 전체 레벨은 가장 낮은 �
   assert.deepEqual(p1.trackLevels, { degree: 2, rhythm: 1, dictation: 1 });
   assert.equal(p1.level, 1);
   assert.equal(frontier(p1, 'degree'), 'd2a');
-  assert.equal(frontier(p1, 'dictation'), 'm1a');
+  assert.equal(frontier(p1, 'dictation'), 'g1a');
   assert.equal(p1.history.length, 1);
   assert.equal(p1.history[0].level, 1);
   // 받아쓰기는 음높이·리듬 중 낮은 쪽이 80% 이상이어야 통과
-  const p2 = computeProgress([...deg, ...[0, 0, 0].map(() => ({ at: day(2), skill: 'm1a', pitchScore: 1, rhythmScore: 0.7 }))]);
-  assert.equal(p2.skills.m1a.mastered, false);
+  const p2 = computeProgress([...deg, ...[0, 0, 0].map(() => ({ at: day(2), skill: 'g1a', pitchScore: 1, rhythmScore: 0.7 }))]);
+  assert.equal(p2.skills.g1a.mastered, false);
 });
 
 test('빠른 통과: 95% 이상을 연속 2번이면 숙달', () => {

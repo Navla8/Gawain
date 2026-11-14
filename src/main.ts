@@ -2,7 +2,6 @@ import './style.css';
 import { SETS, pickRandom, findProblem } from './engine/bank.ts';
 import { GOAL_SECONDS, addDays, dayKey, dayStatus, reviewIds, streak } from './engine/habit.ts';
 import { setCounting, startActivityClock } from './activity.ts';
-import { generate } from './engine/generate.ts';
 import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from './engine/curriculum.ts';
 import { computeProgress, isDue } from './engine/progress.ts';
 import { planMatch, EST } from './engine/session.ts';
@@ -30,13 +29,8 @@ function home() {
   const inLevel = SKILLS.filter((s) => s.level === lv);
   const masteredIn = inLevel.filter((s) => p.skills[s.id].mastered).length;
   const due = SKILLS.filter((s) => isDue(p, s.id, today)).length;
-  const card = (title: string, sub: string, onclick: () => void, progress?: number, cls = 'card') => {
-    const meter = progress === undefined ? '' : h('div', { class: 'meter' }, h('i', { style: `width:${Math.round(progress * 100)}%` }));
-    return h('button', { class: cls, onclick }, h('strong', {}, title), h('em', { class: 'chev' }, '›'), h('span', {}, sub), meter);
-  };
-
-  // 대련: 처음이면 배치고사부터. 배치고사를 중간에 그만뒀으면 다시 배치고사
-  const fresh = !p.placed && !d.attempts.some((a) => a.skill && !a.placement);
+  // 대련: 배치고사를 끝까지 본 적이 없으면 배치고사부터(중간에 그만뒀거나, 받아쓰기 사다리가 바뀌기 전에 봤으면 다시)
+  const fresh = !p.placed;
   const plan = planMatch(p, today);
   const mins = Math.round(plan.reduce((a, s) => a + EST[s.track], 0) / 60);
   const reviews = plan.filter((s) => s.role === 'review').length;
@@ -75,17 +69,8 @@ function home() {
     (() => {
       const ids = new Set(ALL.map((x) => x.id));
       const solved = new Set(d.attempts.filter((a) => ids.has(a.problemId)).map((a) => a.problemId)).size;
-      return card('전체 섞어 풀기', `${SETS.map((s) => s.name).join('·')} ${ALL.length}문제 · ${solved}문제 풀어 봄`, () => startAll(), solved / ALL.length);
+      return card('문제집', `${SETS.map((s) => s.name).join('·')} ${ALL.length}문제 · ${solved}문제 풀어 봄`, setsScreen, solved / ALL.length);
     })(),
-    ...SETS.map((s) => {
-      const mine = d.attempts.filter((a) => a.problemId.startsWith(s.id + '-'));
-      const solved = new Set(mine.map((a) => a.problemId)).size;
-      const recent = mine.slice(-10);
-      const avg = recent.length ? recent.reduce((t, a) => t + (a.pitchScore + a.rhythmScore) / 2, 0) / recent.length : null;
-      const sub = `${solved} / ${s.problems.length} 풀어 봄` + (avg === null ? '' : ` · 최근 평균 ${pct(avg)}`);
-      return card(`${s.name} 문제집`, sub, () => startSet(s.id), solved / s.problems.length);
-    }),
-    card('자동 생성', '도~솔 · 으뜸화음 도약', () => practice(generate(Math.floor(Math.random() * 1e9)), home)),
     card('피아노 룸', '들은 멜로디를 바로 쳐 봐요 · 채점·기록 없음', pianoRoom),
     h('footer', { class: 'backup' },
       h('button', { onclick: exportRecords }, '기록 내보내기'),
@@ -94,6 +79,34 @@ function home() {
   );
 }
 nav.home = home;
+
+/** 홈 카드 하나 */
+function card(title: string, sub: string, onclick: () => void, progress?: number, cls = 'card') {
+  const meter = progress === undefined ? '' : h('div', { class: 'meter' }, h('i', { style: `width:${Math.round(progress * 100)}%` }));
+  return h('button', { class: cls, onclick }, h('strong', {}, title), h('em', { class: 'chev' }, '›'), h('span', {}, sub), meter);
+}
+
+/** 문제집: 2도~6도 고정 선율(기획 §7.1). 대련·단원 판정에 들어가지 않는 자유 연습 (기획 §M5.5) */
+function setsScreen() {
+  stopAll();
+  setCounting(false);
+  const d = load();
+  const ids = new Set(ALL.map((x) => x.id));
+  const solved = new Set(d.attempts.filter((a) => ids.has(a.problemId)).map((a) => a.problemId)).size;
+  app.replaceChildren(
+    header('문제집'),
+    h('p', { class: 'info' }, '음정 크기별 고정 선율이에요. 대련 진도에는 들어가지 않아요.'),
+    card('전체 섞어 풀기', `${ALL.length}문제 · ${solved}문제 풀어 봄`, () => startAll(), solved / ALL.length),
+    ...SETS.map((s) => {
+      const mine = d.attempts.filter((a) => a.problemId.startsWith(s.id + '-'));
+      const solvedN = new Set(mine.map((a) => a.problemId)).size;
+      const recent = mine.slice(-10);
+      const avg = recent.length ? recent.reduce((t, a) => t + (a.pitchScore + a.rhythmScore) / 2, 0) / recent.length : null;
+      const sub = `${solvedN} / ${s.problems.length} 풀어 봄` + (avg === null ? '' : ` · 최근 평균 ${pct(avg)}`);
+      return card(`${s.name} 문제집`, sub, () => startSet(s.id), solvedN / s.problems.length);
+    }),
+  );
+}
 
 /** 피아노 룸: 건반만 있는 화면. 채점·기록이 없고 10분 목표 시간에도 넣지 않는다 */
 function pianoRoom() {

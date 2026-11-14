@@ -1,5 +1,5 @@
-import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from '../engine/curriculum.ts';
-import { FAST_STREAK, MASTER_STREAK, RELEARN_STREAK, classify, computeProgress, isDue, type Progress } from '../engine/progress.ts';
+import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, skill, trackLevelText } from '../engine/curriculum.ts';
+import { FAST_STREAK, MASTER_STREAK, RELEARN_STREAK, blocker, classify, computeProgress, isDue, type Progress } from '../engine/progress.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll } from '../audio/synth.ts';
@@ -49,6 +49,9 @@ export function skillsScreen() {
       return h('span', { class: 'weak' }, `약함 · ${st.lapsed ? '점검에서 잊음' : rate} `, dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK), later);
     }
     if (c === 'waiting') return h('span', { class: 'locked' }, '차례 전');
+    // 선수 단원이 남은 받아쓰기 단원: 그 단원부터 대련에 나온다(기획 §M5.1-2)
+    const b = blocker(p, id);
+    if (b) return h('span', { class: 'locked' }, `먼저 ${TRACK_NAME[skill(b)!.track]} · ${skill(b)!.name}`);
     return h('span', {}, '익히는 중 ', dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK));
   };
   const weak = SKILLS.filter((s) => classify(p, s.id) === 'weak');

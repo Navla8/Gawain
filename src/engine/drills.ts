@@ -1,11 +1,21 @@
 import { TPB, type Note, type Problem } from './types.ts';
-import { rng } from './generate.ts';
 import { keyName, solfa } from './theory.ts';
 
 // 단원별 문제 생성기 (기획 M3). 모든 생성기는 시드가 같으면 같은 문제를 만든다.
 // 음높이는 '도'(조표의 으뜸음)에서 몇 반음인지로 적는다. 단조는 라 으뜸이라 라 = -3.
 
 const mod = (a: number, n: number) => ((a % n) + n) % n;
+
+/** 시드 난수(mulberry32). 같은 시드는 같은 문제를 만든다(복습·오답 재출제용) */
+export function rng(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 /** 도에서 rel 반음 떨어진 음의 상대 계이름(옥타브 무시) */
 export const degreeName = (rel: number) => solfa(60 + rel, 0);
@@ -50,6 +60,11 @@ const DEGREE: Record<string, DegreeCfg> = {
     choices: [-3, -1, 0, 2, 4, 5, 6, 7, 8],
     // 화성단음계 솔♯(8)과 가락단음계 상행 파♯(6)·솔♯
     patterns: [[-4, -3], [-3, -4, -3], [4, 8, 9], [-1, -4, -3], [2, -1, -4, -3], [4, 6, 8, 9], [9, 7, 5, 4], [0, -1, -4, -3], [5, 4, 8, 9], [-3, 0, 4, 8]],
+  },
+  // ii(레·파·라)·vi(라·도·미)·V7(솔·티·레·파) 도약. 선율 받아쓰기 g3c의 선수 단원(기획 §M5.3)
+  d3c: {
+    choices: MAJOR,
+    patterns: [[9, 14, 12], [14, 9, 11, 12], [4, 9, 7], [9, 4, 5, 4], [2, 5, 9, 7], [5, 2, -1, 0], [7, 2, 5, 4], [11, 7, 5, 4], [12, 9, 4, 5]],
   },
 };
 
@@ -171,46 +186,4 @@ export function rhythmItem(skillId: string, seed: number): Problem {
       };
     }
   }
-}
-
-// ───────── 단조 선율 받아쓰기 ─────────
-
-// 라 으뜸 자연단음계(라=0): 라 티 도 레 미 파 솔 라'
-const NAT = [0, 2, 3, 5, 7, 8, 10, 12];
-const CHORD = [0, 2, 4, 7]; // 라·도·미·라' (NAT 인덱스)
-const BODY = [[12, 12, 12, 12], [24, 12, 12], [12, 12, 24], [12, 6, 6, 12, 12], [6, 6, 12, 12, 12], [18, 6, 12, 12], [12, 12, 18, 6]];
-const END = [[12, 12, 24], [24, 24], [18, 6, 24]];
-
-/** 단조 4마디 선율. 라·도·미에서 시작해 으뜸음에서 끝나고, 라'로 올라갈 때 솔은 솔♯(화성·가락단음계) */
-export function minorMelody(seed: number): Problem {
-  const r = rng(seed);
-  const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
-  const fifths = Math.floor(r() * 5) - 2; // 마단조(G장조 조표)~사단조(B♭) 부근
-  const la = 57 + mod(mod(fifths * 7 + 9, 12) - 57, 12); // A3~G♯4
-  const durs = [pick(BODY), pick(BODY), pick(BODY), pick(END)].flat();
-  const n = durs.length;
-  const high = r() < 0.5; // 위 라'로 끝낼지(솔♯→라'), 아래 라로 끝낼지(티→라)
-
-  const deg = [pick(CHORD.slice(0, 3))];
-  let leapDir = 0;
-  for (let i = 1; i < n - 2; i++) {
-    const cur = deg[i - 1];
-    let next: number;
-    if (leapDir) next = cur - leapDir; // 도약 뒤엔 반대 방향 순차진행
-    else if (CHORD.includes(cur) && r() < 0.3) next = pick(CHORD.filter((x) => x !== cur));
-    else next = cur + pick([-1, 1, -1, 1, 0]);
-    next = Math.max(0, Math.min(7, next));
-    leapDir = Math.abs(next - cur) > 1 ? Math.sign(next - cur) : 0;
-    deg.push(next);
-  }
-  // 종지: 위로 끝나면 미(4)→솔♯(6)→라'(7), 아래로 끝나면 레(3)/도(2)→티(1)→라(0)
-  if (high) deg.splice(n - 3, 1, 4, 6, 7);
-  else deg.splice(n - 3, 1, deg[n - 3] > 3 ? 3 : 2, 1, 0);
-  const rels = deg.slice(0, n).map((d, i) => NAT[d] + (d === 6 && deg[i + 1] === 7 ? 1 : 0));
-  return {
-    id: `minor-${seed}`,
-    title: `단조 선율 · ${keyName({ tonic: la, fifths, minor: true })}`,
-    tonic: la, minor: true, fifths, beatsPerBar: 4, bars: 4, tempo: 76,
-    notes: durs.map((dur, i) => ({ midi: la + rels[i], dur })),
-  };
 }

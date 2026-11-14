@@ -71,7 +71,3 @@ export const accidentalSymbol = (acc: number) => ACC[acc] || '♮';
 export function keyName(p: { tonic: number; fifths: number; minor?: boolean }): string {
   return `${noteName(p.tonic, p.fifths).replace(/-?\d+$/, '')} ${p.minor ? '단조' : '장조'}`;
 }
-
-export const KEY_NAMES: Record<number, string> = {
-  [-6]: 'G♭', [-5]: 'D♭', [-4]: 'A♭', [-3]: 'E♭', [-2]: 'B♭', [-1]: 'F', 0: 'C', 1: 'G', 2: 'D', 3: 'A', 4: 'E', 5: 'B', 6: 'F♯',
-};

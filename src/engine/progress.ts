@@ -19,9 +19,6 @@ export const FAST_STREAK = 2;
 export const WEAK_MIN = 4;
 export const WEAK_RATE = 0.5;
 
-/** 이날부터 배치고사 끝 표시를 남긴다. 그 전 기록의 배치고사는 끝까지 봤는지 알 수 없어 본 것으로 친다 */
-const PLACEMENT_END_SINCE = '2026-11-14';
-
 export interface SkillAttempt {
   at: string;
   skill?: string;
@@ -82,6 +79,11 @@ function reviewed(st: SkillState, day: string) {
   st.due = addDays(day, INTERVALS[st.reviews]);
 }
 
+/** 배치고사로 숙달 전으로 되돌림(점검에서 잊은 것은 아니라 약함으로 치지 않는다) */
+function unmaster(st: SkillState) {
+  Object.assign(st, { mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, due: undefined });
+}
+
 function forgot(st: SkillState, day: string) {
   Object.assign(st, { mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, due: undefined, lapsed: true, lapsedOn: day });
 }
@@ -96,9 +98,10 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
   const lower = ladder(s.track).slice(0, ladder(s.track).indexOf(s));
 
   if (a.placement) {
-    // 배치고사 통과는 그 단원과 아래 단원을 모두 숙달로 본다. 3일 뒤 첫 점검이 진짜 확인이다
+    // 배치고사 통과는 그 단원과 아래 단원을 모두 숙달로 본다. 3일 뒤 첫 점검이 진짜 확인이다.
+    // 틀리면 그 단원과 위 단원을 모두 숙달 전으로 되돌린다(배치고사를 다시 보면 사다리를 처음부터 다시 매김)
     if (ok) for (const x of [...lower, s]) { if (!skills[x.id].mastered) master(skills[x.id], day); }
-    else if (st.mastered) forgot(st, day);
+    else for (const x of ladder(s.track).slice(ladder(s.track).indexOf(s))) unmaster(skills[x.id]);
     return;
   }
   if (!ok) {
@@ -141,7 +144,8 @@ export function computeProgress(attempts: SkillAttempt[]): Progress {
   const list = attempts.filter((a) => a.skill && skill(a.skill)).sort((x, y) => x.at.localeCompare(y.at));
   for (const a of list) {
     apply(skills, a);
-    placed ||= !!a.placementEnd || (!!a.placement && dayKey(new Date(a.at)) < PLACEMENT_END_SINCE);
+    // 배치고사는 끝까지 봐야 본 것. 끝 표시가 없는 예전 배치고사는 받아쓰기 사다리가 바뀌어(기획 §M5) 다시 본다
+    placed ||= !!a.placementEnd;
     const l = levels(skills).level;
     if (l !== level) history.push({ at: a.at, level: (level = l) });
   }
@@ -150,6 +154,9 @@ export function computeProgress(attempts: SkillAttempt[]): Progress {
 
 /** 이 유형에서 지금 익힐 단원 id */
 export const frontier = (p: Progress, track: Track) => firstOpen(p.skills, track)?.id;
+
+/** 이 단원의 선수 단원 중 아직 숙달하지 않은 첫 단원(기획 §M5.1-2) */
+export const blocker = (p: Progress, id: string) => skill(id)!.prereq?.find((x) => !p.skills[x].mastered);
 
 const isWeak = (st: SkillState) => !st.mastered
   && (st.lapsed || (st.recent.length >= WEAK_MIN && st.recent.reduce((a, b) => a + b, 0) / st.recent.length < WEAK_RATE));
