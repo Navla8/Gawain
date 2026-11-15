@@ -25,7 +25,7 @@ export interface Slot {
 }
 
 /** 문항 하나에 드는 대략의 시간(초) */
-export const EST: Record<Track, number> = { degree: 25, rhythm: 45, dictation: 120 };
+export const EST: Record<Track, number> = { degree: 25, rhythm: 45, dictation: 120, harmony: 30 };
 /** 한 판 목표 시간(약 9분)과 문항 수 한도 */
 export const BUDGET = 540;
 const MAX_ITEMS = 10;

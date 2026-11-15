@@ -140,6 +140,20 @@ export function playProblem(p: Problem, withCadence: boolean, melodyClick = true
   return playNotes(p.notes, p.tempo, t - c.currentTime);
 }
 
+/** 화성 듣기: 화음을 차례로(베이스 + 위 성부). arpeggio면 첫 화음을 아래부터 펼친 뒤 함께 친다. 전체 길이(초)를 돌려준다 */
+export function playChords(chords: number[][], arpeggio = false, sec = 1.0): number {
+  const c = unlockAudio();
+  stopAll();
+  let t = c.currentTime + 0.05;
+  for (const chord of chords) {
+    if (arpeggio) chord.forEach((m, i) => piano(m, t + i * 0.45, 0.4, 0.55));
+    if (arpeggio) t += chord.length * 0.45 + 0.2;
+    for (const m of chord) piano(m, t, sec * 0.9, 0.5);
+    t += sec;
+  }
+  return t - c.currentTime;
+}
+
 /** 계이름 듣기: (처음이면 카덴츠) → 잠깐 쉬고 → 음들을 4분음표로. 전체 길이(초)를 돌려준다 */
 export function playDegrees(midis: number[], tonic: number, minor: boolean, withCadence: boolean): number {
   const c = unlockAudio();

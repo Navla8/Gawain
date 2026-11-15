@@ -324,6 +324,9 @@ h2 { margin: 8px 0 -4px; font-family: var(--font-mono); font-size: 12px; color: 
 .deg { padding: 18px 0; border-radius: 14px; border: 1px solid var(--line); font-size: 20px; }
 .deg:active { background: var(--soft); }
 .degree-foot { display: flex; flex-direction: column; gap: 10px; }
+.degree-pad.wide { grid-template-columns: repeat(2, 1fr); }
+.degree-pad.wide .deg { font-size: 16px; }
+.slot.given b { color: var(--muted); }
 
 /* 리듬 받아쓰기 치기 버튼 */
 .tap-pad { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }

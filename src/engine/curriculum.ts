@@ -1,7 +1,7 @@
-// 커리큘럼: 레벨(L0~L3) × 유형(계이름 듣기·리듬 받아쓰기·선율 받아쓰기)의 단원 사다리 (기획 M3)
+// 커리큘럼: 레벨(L0~L3) × 유형(계이름 듣기·리듬 받아쓰기·선율 받아쓰기·화성 듣기)의 단원 사다리 (기획 M3, §M7.4)
 // 유형마다 단원이 쉬운 것부터 어려운 것 순서로 놓인다. 숙달·복습·배치고사는 이 순서를 따른다.
 
-export type Track = 'degree' | 'rhythm' | 'dictation';
+export type Track = 'degree' | 'rhythm' | 'dictation' | 'harmony';
 
 export interface Skill {
   id: string;
@@ -18,6 +18,7 @@ export const TRACKS: { id: Track; name: string; short: string }[] = [
   { id: 'degree', name: '계이름 듣기', short: '계이름' },
   { id: 'rhythm', name: '리듬 받아쓰기', short: '리듬' },
   { id: 'dictation', name: '선율 받아쓰기', short: '선율' },
+  { id: 'harmony', name: '화성 듣기', short: '화성' },
 ];
 
 /** 유형 레벨 표시: 구현된 레벨을 모두 마쳤으면 '완료' */
@@ -25,9 +26,9 @@ export const trackLevelText = (l: number) => (l > MAX_LEVEL ? '완료' : `L${l}`
 
 export const LEVELS = [
   { level: 0, name: '조성감', goal: '으뜸음을 기준으로 도·레·미를 구분한다' },
-  { level: 1, name: '순차진행과 으뜸화음', goal: '장음계 순차진행과 도·미·솔 도약, 4분·2분음표' },
-  { level: 2, name: '주요 3화음과 8분음표', goal: '파·티 경향음, 딸림·버금딸림화음 도약, 8분·점4분음표' },
-  { level: 3, name: '단조와 빠른 리듬', goal: '라 으뜸 단조, ii·vi·V7 도약, 16분음표·당김음·6/8·붙임줄, 못갖춘마디, 8마디 선율' },
+  { level: 1, name: '순차진행과 으뜸화음', goal: '장음계 순차진행과 도·미·솔 도약, 4분·2분음표, 3화음 성질' },
+  { level: 2, name: '주요 3화음과 8분음표', goal: '파·티 경향음, 딸림·버금딸림화음 도약, 8분·점4분음표, 종지·I·IV·V 진행' },
+  { level: 3, name: '단조와 빠른 리듬', goal: '라 으뜸 단조, ii·vi·V7 도약, 16분음표·당김음·6/8·붙임줄, 못갖춘마디, 8마디 선율, 자리바꿈·V7·부3화음 진행' },
   { level: 4, name: '반음계와 전조', goal: '변화음(Fi·Si·Te), 근친조 전조, 2성부', planned: true },
   { level: 5, name: '초견과 채보', goal: '8마디 실전 받아쓰기, 낮은음자리표, 초견 시창', planned: true },
 ] as const;
@@ -71,6 +72,13 @@ export const SKILLS: Skill[] = [
   { id: 'g3e', track: 'dictation', level: 3, name: '붓점·당김음', prereq: ['r3b'], covers: ['g3d'] },
   { id: 'g3g', track: 'dictation', level: 3, name: '못갖춘마디', covers: ['g3e'] },
   { id: 'g3f', track: 'dictation', level: 3, name: '8마디', covers: ['g3e'] },
+
+  // 화성 듣기(기획 §M7.4): 생성기는 engine/harmony.ts
+  { id: 'h1', track: 'harmony', level: 1, name: '3화음 성질 (장·단·감·증)' },
+  { id: 'h2a', track: 'harmony', level: 2, name: '종지 (정격·반·변격·위)' },
+  { id: 'h2b', track: 'harmony', level: 2, name: '주요 3화음 진행 (I·IV·V)' },
+  { id: 'h3a', track: 'harmony', level: 3, name: '자리바꿈·V7 (I⁶·I⁶₄·V⁶·V⁷)', covers: ['h2b'] },
+  { id: 'h3b', track: 'harmony', level: 3, name: '부3화음·단조 진행 (ii·vi / i·iv·VI·ii°⁶)', covers: ['h2b'] },
 ];
 
 export const skill = (id: string) => SKILLS.find((s) => s.id === id);

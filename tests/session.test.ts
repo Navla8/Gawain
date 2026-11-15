@@ -107,24 +107,25 @@ test('모두 숙달하고 점검할 것도 없으면 가장 어려운 단원으�
 
 test('배치고사: 유형마다 이분 탐색해 끝난다', () => {
   // 실력: 계이름 d2b까지, 리듬 r1까지, 받아쓰기 g1c까지 한다고 가정
-  const can: Record<string, number> = { degree: 5, rhythm: 0, dictation: 2 };
+  const can: Record<string, number> = { degree: 5, rhythm: 0, dictation: 2, harmony: 1 };
   const results: { skill: string; ok: boolean }[] = [];
   for (let slot = nextPlacement(results); slot; slot = nextPlacement(results)) {
     const i = ladder(slot.track).findIndex((s) => s.id === slot!.skill);
     results.push({ skill: slot.skill!, ok: i <= can[slot.track] });
     assert.ok(results.length < 15);
   }
-  assert.ok(results.length <= 11, `${results.length}문항`);
+  assert.ok(results.length <= 14, `${results.length}문항`);
   const p = computeProgress(results.map((r) => ({ at: at(0), skill: r.skill, placement: true, pitchScore: r.ok ? 1 : 0, rhythmScore: 1 })));
   assert.ok(p.skills.d2b.mastered && !p.skills.d2c.mastered);
   assert.ok(p.skills.r1.mastered && !p.skills.r2a.mastered);
   assert.ok(p.skills.g1c.mastered && !p.skills.g2a.mastered);
+  assert.ok(p.skills.h2a.mastered && !p.skills.h2b.mastered);
   // 유형을 돌아가며 낸다
   assert.notEqual(results[0].skill[0], results[1].skill[0]);
 });
 
 test('배치고사 남은 문항 수', () => {
-  assert.ok(placementLeft([]) >= 9 && placementLeft([]) <= 12);
+  assert.ok(placementLeft([]) >= 11 && placementLeft([]) <= 15);
   const all = (ok: boolean) => { const r: { skill: string; ok: boolean }[] = []; for (let s = nextPlacement(r); s; s = nextPlacement(r)) r.push({ skill: s.skill!, ok }); return r.length; };
   assert.ok(placementLeft([]) >= all(true));
 });

@@ -125,11 +125,11 @@ test('배치고사를 다시 보면 틀린 단원과 그 위 단원은 숙달 �
 test('레벨은 유형마다 따로 오르고, 전체 레벨은 가장 낮은 유형 레벨이다', () => {
   const p0 = computeProgress([]);
   assert.equal(p0.level, 0);
-  assert.deepEqual(p0.trackLevels, { degree: 0, rhythm: 1, dictation: 1 });
+  assert.deepEqual(p0.trackLevels, { degree: 0, rhythm: 1, dictation: 1, harmony: 1 });
   // 계이름만 L0·L1을 다 숙달해도 L2 계이름 단원으로 넘어간다(다른 유형에 막히지 않음)
   const deg = ['d0a', 'd0b', 'd1a', 'd1b'].flatMap((id) => [0, 0, 0].map(() => att(1, id, 1)));
   const p1 = computeProgress(deg);
-  assert.deepEqual(p1.trackLevels, { degree: 2, rhythm: 1, dictation: 1 });
+  assert.deepEqual(p1.trackLevels, { degree: 2, rhythm: 1, dictation: 1, harmony: 1 });
   assert.equal(p1.level, 1);
   assert.equal(frontier(p1, 'degree'), 'd2a');
   assert.equal(frontier(p1, 'dictation'), 'g1a');

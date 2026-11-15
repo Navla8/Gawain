@@ -11,6 +11,8 @@ import { load, save } from '../store.ts';
 import { app, h, header, nav } from './dom.ts';
 import { solve, type ItemCtx } from './dictation.ts';
 import { degreeScreen } from './degree.ts';
+import { harmonyScreen } from './harmony.ts';
+import { harmonyItem } from '../engine/harmony.ts';
 
 // 대련(원터치 통합 테스트)과 배치고사 진행 (기획 M3)
 
@@ -37,7 +39,7 @@ export function matchPlan() {
 }
 
 /** 실전 조건의 재생 횟수(기획 §M6.3): 받아쓰기·리듬 5 → 3, 계이름 3 → 2 */
-const EXAM_PLAYS = { degree: 2, rhythm: 3, dictation: 3 };
+const EXAM_PLAYS = { degree: 2, rhythm: 3, dictation: 3, harmony: 2 };
 
 /** 홈의 대련 버튼 */
 export function startMatch() {
@@ -55,8 +57,8 @@ export function startPlacement() {
     h('section', { class: 'intro' },
       h('p', { class: 'eyebrow' }, 'Placement'),
       h('h1', {}, again ? '실력을 다시 매겨요' : '어디서부터 시작할까요'),
-      h('p', {}, '계이름 듣기 · 리듬 받아쓰기 · 선율 받아쓰기를 돌아가며 한 문제씩 내요. 맞히면 더 어려운 단원으로, 틀리면 더 쉬운 단원으로 옮겨 가며 지금 레벨을 찾아요.'),
-      h('p', {}, `약 10문항, 10분 남짓 걸려요. 모르는 문제는 ‘모르겠어요’로 넘겨도 돼요. 통과한 단원은 숙달로 치고, 3일 뒤 첫 점검에서 한 번 더 확인해요.`),
+      h('p', {}, '계이름 듣기 · 리듬 받아쓰기 · 선율 받아쓰기 · 화성 듣기를 돌아가며 한 문제씩 내요. 맞히면 더 어려운 단원으로, 틀리면 더 쉬운 단원으로 옮겨 가며 지금 레벨을 찾아요.'),
+      h('p', {}, `약 13문항, 10분 남짓 걸려요. 모르는 문제는 ‘모르겠어요’로 넘겨도 돼요. 통과한 단원은 숙달로 치고, 3일 뒤 첫 점검에서 한 번 더 확인해요.`),
       h('button', { class: 'cta', onclick: () => next({ kind: 'placement', slots: [], i: 0, before: progressNow(), log: [] }) }, '시작'),
     ),
   );
@@ -116,6 +118,7 @@ function show(run: Run, slot: Slot, step: [number, number]) {
   const rhythmAt = (x: number) => rhythmItem(id, x);
   const melodyAt = (x: number) => melodyItem(id, x, s.name);
   if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weak), ctx);
+  else if (s.track === 'harmony') harmonyScreen(harmonyItem(id, seed(), weak), ctx);
   else if (s.track === 'rhythm') solve(fixed !== undefined ? rhythmAt(fixed) : bestOf(rhythmAt, (it) => contentTags(it.notes, it.fifths, true), seed(), weak), { ...ctx, rhythm: true });
   else solve(fixed !== undefined ? melodyAt(fixed) : bestOf(melodyAt, (it) => contentTags(it.notes, it.fifths, false, it.minor), seed(), weak), ctx);
 }
