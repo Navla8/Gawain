@@ -73,11 +73,11 @@ test('어려운 단원을 맞혀도 그 단원에 들어 있지 않은 아래 �
   const a = [att(0, 'r3c', 1, { placement: true }), att(0, 'g3f', 1, { placement: true }), att(3, 'r3c', 1), att(3, 'g3f', 1)];
   const p = computeProgress(a);
   assert.equal(p.skills.r3c.reviews, 1);
-  for (const id of ['r3a', 'r3b', 'r2b', 'g3a', 'g3b']) {
+  for (const id of ['r3a', 'r3b', 'r2b', 'g3a', 'g3b', 'g3c', 'g2d', 'g1a']) {
     assert.equal(p.skills[id].reviews, 0, id);
     assert.equal(p.skills[id].due, '2026-11-04', id);
   }
-  for (const id of ['g3e', 'g3c', 'g2d', 'g1a']) assert.equal(p.skills[id].reviews, 1, id);
+  for (const id of ['g3e', 'g3d']) assert.equal(p.skills[id].reviews, 1, id);
 });
 
 test('점검을 아슬아슬하게(90% 미만) 넘기면 간격이 늘지 않고 같은 간격으로 다시 점검', () => {

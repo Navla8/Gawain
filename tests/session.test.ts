@@ -152,3 +152,10 @@ test('지금 단원이 약함(점검에서 잊음)이면 짧은 문항을 더 �
   const n = (t: string) => plan.filter((s) => s.track === t && s.role === 'learn').length;
   assert.ok(n('degree') > n('rhythm'), `계이름 ${n('degree')} 리듬 ${n('rhythm')}`);
 });
+
+test('covers는 생성기가 95% 이상 넣는 쌍만 남긴다(H4)', () => {
+  const drop: [string, string][] = [['g2c', 'g2b'], ['g2d', 'g2c'], ['g3c', 'g2d'], ['g3d', 'g3c'], ['g4a', 'g3c'], ['r2b', 'r2a'], ['r3a', 'r2b'], ['r3b', 'r3a'], ['r4a', 'r3b']];
+  for (const [up, down] of drop) assert.ok(!within(up).includes(down), `${up} ⊅ ${down}`);
+  const keep: [string, string][] = [['g2b', 'g2a'], ['g3e', 'g3d'], ['g3f', 'g3e'], ['g5b', 'g3e'], ['r4b', 'r3c']];
+  for (const [up, down] of keep) assert.ok(within(up).includes(down), `${up} ⊃ ${down}`);
+});
