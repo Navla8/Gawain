@@ -59,3 +59,12 @@ test('못갖춘마디: 첫 마디가 짧아 offset만큼 밀려 그리고, 박 �
   assert.deepEqual(barProblems(ns, 48, 2, 36), [2]); // 둘째 마디(첫 온마디)까지 채움, 마지막 마디(3박) 모자람
   assert.deepEqual(barProblems([...ns, { midi: 72, dur: 36 }], 48, 2, 36), []);
 });
+
+test('셋잇단 묶음: 모양마다 한 묶음은 셋(8분 12틱, 4분 24틱, 2분 48틱)이다', async () => {
+  const { tripletGroups } = await import('../src/engine/score.ts');
+  const groups = (xs: Note[]) => tripletGroups(toGlyphs(xs, 48)).map(([a, b]) => b - a);
+  assert.deepEqual(groups([n(60, 4), n(62, 4), n(64, 4), n(65, 36)]), [3]);
+  assert.deepEqual(groups([n(60, 8), n(62, 8), n(64, 8), n(65, 24)]), [3]);
+  assert.deepEqual(groups([n(60, 8), n(62, 8), n(64, 8), n(65, 4), n(67, 4), n(69, 4), n(60, 12)]), [3, 3]);
+  assert.deepEqual(groups([n(60, 16), n(62, 16), n(64, 16)]), [3]);
+});

@@ -95,3 +95,16 @@ const TAKADIMI: Record<number, Record<number, string>> = {
 export function takadimi(onset: number, beatTicks: number): string {
   return TAKADIMI[beatTicks]?.[onset % beatTicks] ?? '·';
 }
+
+/** 이어진 셋잇단 글리프 묶음(시작, 끝 다음) 목록. 한 묶음은 같은 모양 셋이라 틱 합이 모양(value)의 2배다(8분 12·4분 24·2분 48) */
+export function tripletGroups(glyphs: Glyph[]): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < glyphs.length; i++) {
+    if (!glyphs[i].triplet) continue;
+    let j = i, ticks = 0;
+    while (j < glyphs.length && glyphs[j].triplet && ticks < 2 * glyphs[i].value) ticks += glyphs[j++].ticks;
+    out.push([i, j]);
+    i = j - 1;
+  }
+  return out;
+}

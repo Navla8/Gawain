@@ -1,5 +1,5 @@
 import { TPB, timeSignature, type Note } from '../engine/types.ts';
-import { takadimi, toGlyphs, type Glyph } from '../engine/score.ts';
+import { takadimi, toGlyphs, tripletGroups, type Glyph } from '../engine/score.ts';
 import { spell, solfege, keySignatureSteps, keyAccidental, accidentalSymbol, type KeyRead } from '../engine/theory.ts';
 
 // 높은음자리표 한 줄 악보를 SVG로 그린다. 음표마다 색·라벨·탭 선택을 직접 제어하기 위해 라이브러리를 쓰지 않는다.
@@ -165,14 +165,10 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
   });
 
   // 셋잇단 표시: 이어진 셋잇단 글리프 묶음마다 "3"
-  for (let i = 0; i < glyphs.length; i++) {
-    if (!glyphs[i].triplet) continue;
-    let j = i, ticks = 0;
-    while (j < glyphs.length && glyphs[j].triplet && ticks < TPB) ticks += glyphs[j++].ticks;
+  for (const [i, j] of tripletGroups(glyphs)) {
     const t = el('text', { x: (positions[i] + positions[j - 1]) / 2, y: y(44), 'font-size': 11, 'text-anchor': 'middle', 'font-style': 'italic', fill: ink }, svg);
     t.textContent = '3';
     el('path', { d: `M${positions[i] - 3} ${y(43)} v-3 H${positions[j - 1] + 3} v3`, fill: 'none', stroke: ink, 'stroke-width': 0.8 }, svg);
-    i = j - 1;
   }
 
   // 마지막으로 그린 마디를 닫고, 아직 안 적은 빈 마디를 그린다
