@@ -59,6 +59,12 @@ interface Unit {
   pickup?: boolean;
   /** 반음계 보조음·경과음을 마디에 0~1개(둘 이상), 반음으로 해결(기획 §M7.5) */
   chromatic?: boolean;
+  /** 낮은음자리표 선율(C2~E4 음역, 마디 센박에 근음을 더 자주) */
+  bass?: boolean;
+  /** 2성부: 위 선율 아래에 화음 근음 베이스(낮은음자리표)를 붙인다 */
+  bassLine?: boolean;
+  /** 재생 횟수(실전) */
+  plays?: number;
   /** 8마디: 5마디부터 딸림조(새 도 = 솔)로 전조. 걸음은 원조 칸으로 하고 뒤 악절의 화음·종지는 새 조(4칸 위)로 본다 */
   modulate?: boolean;
   /** 이 단원의 새 음높이 요소가 들어갔는지(음계 칸 열을 받는다) */
@@ -115,6 +121,11 @@ export const UNITS: Record<string, Unit> = {
   g3e: { meters: M34, dense: 5, bars: 4, rhythm: 'r3b', freshRhythm: true, leap: ALL, progs: [...P_DIA, ...P_IV], range: [-3, 9], keys: 4, tempo: 72 },
   // L4(기획 §M7.5): 익숙한 리듬(점4분까지) 위에 새 요소 하나
   g4a: { meters: M34, dense: 4, bars: 4, rhythm: 'r2b', leap: ALL, progs: P_DIA, range: [-3, 9], keys: 3, tempo: 72, chromatic: true },
+  g4c: { meters: M34, dense: 4, bars: 4, rhythm: 'r2a', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 8], keys: 3, tempo: 72, bassLine: true },
+  // L5(기획 §M7.6)
+  g5a: { meters: M34, dense: 4, bars: 4, rhythm: 'r2b', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 8], keys: 3, tempo: 76, bass: true },
+  g5b: { meters: M34, dense: 4.5, bars: 8, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV, ...P_V], range: [-3, 9], keys: 4, tempo: 88, plays: 3,
+    minor: 0.5, minorLeap: ALL, minorProgs: [...P_MINOR, ['I', 'vi', 'ii', 'V'], ['I', 'IV', 'V7', 'I'], ['I', 'vi', 'V7', 'I']] },
   g4b: { meters: M34, dense: 4, bars: 8, rhythm: 'r2b', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 11], keys: 3, tempo: 76, modulate: true },
   // 못갖춘마디: 한 박 여린박(딸림화음 위 솔·미)에서 으뜸화음 센박으로. 마지막 마디는 한 박 짧다
   g3g: { meters: M34, dense: 5, bars: 4, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV], range: [-3, 9], keys: 4, tempo: 72, pickup: true },
@@ -219,6 +230,7 @@ function walk(u: Unit, slots: Slot[], chords: string[], leapOk: string[], r: () 
       const prev = i ? steps[i - 1] : t;
       let x = t === prev ? 0.3 : isLeap(prev, t) ? 0.6 : 1;
       if (strong) x *= chord.includes(mod(t - o, 7)) ? 3 : 0.5;
+      if (strong && u.bass && notes[i].onset === 0 && mod(t - o, 7) === chord[0]) x *= 2; // 베이스: 마디 첫 박에 근음
       return x;
     };
     const ws = cand.map(w);
@@ -228,6 +240,31 @@ function walk(u: Unit, slots: Slot[], chords: string[], leapOk: string[], r: () 
     steps.push(cand[k]);
   }
   return steps;
+}
+
+/** 2성부의 아래 성부(기획 §M7.6): 마디마다 화음 근음(온마디 또는 반반, 둘째 음은 근음이나 5음), 마지막 마디는 으뜸음.
+ *  C2~A3에서 앞 음에 가까운 옥타브로 */
+function bassVoice(chords: string[], beats: number, tonic: number, r: () => number): Note[] | undefined {
+  const barLen = beats * TPB;
+  const out: Note[] = [];
+  let prev = 48 + mod(tonic - 48, 12);
+  const near = (pc: number) => [36, 48].map((o) => o + mod(tonic + pc - o, 12)).flatMap((m) => [m, m + 12]).filter((m) => m >= 36 && m <= 57)
+    .reduce((a, m) => (Math.abs(m - prev) < Math.abs(a - prev) ? m : a));
+  chords.forEach((c, b) => {
+    const [root, , fifth] = CHORDS[c].map((s) => MAJOR[s]);
+    const last = b === chords.length - 1;
+    const split = !last && r() < 0.5;
+    const first = near(root);
+    prev = first;
+    if (!split) { out.push({ midi: first, dur: barLen }); return; }
+    const head = 24;
+    out.push({ midi: first, dur: head });
+    const second = near(r() < 0.5 ? fifth : root);
+    out.push({ midi: second, dur: barLen - head });
+    prev = second;
+  });
+  // 음역 끝에서 옥타브가 막혀 5도 넘게 뛰면 다시 만든다
+  return out.every((n, i) => !i || Math.abs(n.midi! - out[i - 1].midi!) <= 7) ? out : undefined;
 }
 
 /** 반음계 보조음·경과음(기획 §M7.5): 여린박 음을 다음 음의 반음 아래(올림, 위로 해결)나 반음 위(내림, 아래로 해결)로 바꾼다.
@@ -266,7 +303,7 @@ export function melodyItem(id: string, seed: number, name = id): Problem {
   const fifths = Math.floor(r() * (2 * u.keys + 1)) - u.keys;
   const pc = mod(fifths * 7 + (minor ? 9 : 0), 12);
 
-  let best: { notes: Note[]; tonic: number } | undefined;
+  let best: { notes: Note[]; tonic: number; bass?: Note[] } | undefined;
   for (let tries = 0; tries < 2000 && !best; tries++) {
     const slots = rhythm(u, r, beats);
     if (!slots) continue;
@@ -285,9 +322,11 @@ export function melodyItem(id: string, seed: number, name = id): Problem {
     // 으뜸음(장조 도, 단조 라)을 조표에 맞추고, 선율이 건반(F3~C6) 안에 들면서 가운데가 G4에 가장 가까운 옥타브. 안 들면 다시 만든다
     const ss = sem;
     const low = Math.min(...ss), high = Math.max(...ss);
-    const fits = [36, 48, 60, 72].map((o) => o + pc).filter((t) => t + low >= 53 && t + high <= 84);
+    // 높은음자리표는 F3~C6에서 G4 가까이, 낮은음자리표는 C2~E4에서 C3 가까이
+    const [kLo, kHi, mid] = u.bass ? [36, 64, 50] : [53, 84, 67];
+    const fits = [24, 36, 48, 60, 72].map((o) => o + pc).filter((t) => t + low >= kLo && t + high <= kHi);
     if (!fits.length) continue;
-    const dist = (t: number) => Math.abs(t + (low + high) / 2 - 67);
+    const dist = (t: number) => Math.abs(t + (low + high) / 2 - mid);
     const tonic = fits.reduce((a, t) => (dist(t) < dist(a) ? t : a));
     let k = 0;
     const notes: Note[] = slots.map((s) => {
@@ -301,11 +340,13 @@ export function melodyItem(id: string, seed: number, name = id): Problem {
       const ps = notes.filter((x) => x.midi !== null), j = bars.findIndex((b) => b >= 4);
       if (Math.abs(ps[j].midi! - ps[j - 1].midi!) > 5) continue;
     }
-    best = { notes, tonic };
+    const bass = u.bassLine ? bassVoice(chords, beats, tonic, r) : undefined;
+    if (u.bassLine && !bass) continue;
+    best = { notes, tonic, bass };
   }
   if (!best) throw new Error(`선율 생성 실패: ${id} ${seed}`);
 
-  const { notes, tonic } = best;
+  const { notes, tonic, bass } = best;
   const compound = u.rhythm === '6/8';
   return {
     id: `mel-${id}-${seed}`,
@@ -313,6 +354,55 @@ export function melodyItem(id: string, seed: number, name = id): Problem {
     tonic, ...(minor && { minor: true }), fifths,
     beatsPerBar: beats, ...(compound && { beatTicks: 18 }), ...(u.pickup && { pickup: TPB }),
     ...(u.modulate && { modulation: { at: 4 * beats * TPB, tonic: tonic + 7 } }),
+    ...(u.bass && { clef: 'bass' as const }), ...(u.plays && { plays: u.plays }),
+    ...(bass && { bass }),
     bars: u.bars, tempo: u.tempo, notes,
+  };
+}
+
+// ───────── 곡 채보(t5, 기획 §M7.6): 공개 도메인 곡 선율. [도에서 몇 반음, 틱] ─────────
+
+interface Tune { name: string; beats: number; beatTicks?: number; tempo: number; notes: [number, number][] }
+const q = 12, hf = 24, w = 48, e = 6;
+export const TUNES: Tune[] = [
+  { name: '환희의 송가 (베토벤)', beats: 4, tempo: 96, notes: [
+    [4, q], [4, q], [5, q], [7, q], [7, q], [5, q], [4, q], [2, q], [0, q], [0, q], [2, q], [4, q], [4, 18], [2, e], [2, hf],
+    [4, q], [4, q], [5, q], [7, q], [7, q], [5, q], [4, q], [2, q], [0, q], [0, q], [2, q], [4, q], [2, 18], [0, e], [0, hf]] },
+  { name: '반짝반짝 작은 별 (프랑스 민요)', beats: 4, tempo: 92, notes: [
+    [0, q], [0, q], [7, q], [7, q], [9, q], [9, q], [7, hf], [5, q], [5, q], [4, q], [4, q], [2, q], [2, q], [0, hf],
+    [7, q], [7, q], [5, q], [5, q], [4, q], [4, q], [2, hf], [7, q], [7, q], [5, q], [5, q], [4, q], [4, q], [2, hf],
+    [0, q], [0, q], [7, q], [7, q], [9, q], [9, q], [7, hf], [5, q], [5, q], [4, q], [4, q], [2, q], [2, q], [0, hf]] },
+  { name: '자크 형제 (프랑스 민요)', beats: 4, tempo: 100, notes: [
+    [0, q], [2, q], [4, q], [0, q], [0, q], [2, q], [4, q], [0, q], [4, q], [5, q], [7, hf], [4, q], [5, q], [7, hf],
+    [7, e], [9, e], [7, e], [5, e], [4, q], [0, q], [7, e], [9, e], [7, e], [5, e], [4, q], [0, q],
+    [0, q], [-5, q], [0, hf], [0, q], [-5, q], [0, hf]] },
+  { name: '메리의 어린 양 (미국 동요)', beats: 4, tempo: 100, notes: [
+    [4, q], [2, q], [0, q], [2, q], [4, q], [4, q], [4, hf], [2, q], [2, q], [2, hf], [4, q], [7, q], [7, hf],
+    [4, q], [2, q], [0, q], [2, q], [4, q], [4, q], [4, q], [4, q], [2, q], [2, q], [4, q], [2, q], [0, w]] },
+  { name: '런던 다리 (영국 동요)', beats: 4, tempo: 100, notes: [
+    [7, 18], [9, e], [7, q], [5, q], [4, q], [5, q], [7, hf], [2, q], [4, q], [5, hf], [4, q], [5, q], [7, hf],
+    [7, 18], [9, e], [7, q], [5, q], [4, q], [5, q], [7, hf], [2, hf], [7, hf], [4, q], [0, 36]] },
+  { name: '노를 저어라 (미국 동요)', beats: 2, beatTicks: 18, tempo: 92, notes: [
+    [0, 18], [0, 18], [0, 12], [2, e], [4, 18], [4, 12], [2, e], [4, 12], [5, e], [7, 36],
+    [12, e], [12, e], [12, e], [7, e], [7, e], [7, e], [4, e], [4, e], [4, e], [0, e], [0, e], [0, e],
+    [7, 12], [5, e], [4, 12], [2, e], [0, 36]] },
+];
+
+/** 곡 채보 한 문제: 시드로 곡과 조(조표 3개까지)를 고르고, 건반 안에서 G4 가까이 옮긴다 */
+export function tuneItem(seed: number): Problem {
+  const r = rng(seed);
+  const t = TUNES[Math.floor(r() * TUNES.length)];
+  const fifths = Math.floor(r() * 7) - 3;
+  const pc = mod(fifths * 7, 12);
+  const rels = t.notes.map(([x]) => x);
+  const low = Math.min(...rels), high = Math.max(...rels);
+  const tonic = [48, 60, 72].map((o) => o + pc).filter((x) => x + low >= 53 && x + high <= 84)
+    .reduce((a, x) => (Math.abs(x + (low + high) / 2 - 67) < Math.abs(a + (low + high) / 2 - 67) ? x : a));
+  const len = t.beats * (t.beatTicks ?? TPB);
+  const total = t.notes.reduce((a, [, d]) => a + d, 0);
+  return {
+    id: `tun-t5-${seed}`, title: `곡 채보 · ${t.name} · ${keyName({ tonic, fifths })}`,
+    tonic, fifths, beatsPerBar: t.beats, ...(t.beatTicks && { beatTicks: t.beatTicks }), bars: total / len, tempo: t.tempo,
+    notes: t.notes.map(([x, d]) => ({ midi: tonic + x, dur: d })),
   };
 }

@@ -26,6 +26,12 @@ export interface Problem {
   bars: number;
   /** 못갖춘마디의 길이(틱). 첫 마디가 이만큼만 있고 마지막 마디가 이만큼 짧다 */
   pickup?: number;
+  /** 낮은음자리표로 적는 선율(없으면 높은음자리표) */
+  clef?: 'bass';
+  /** 2성부 받아쓰기의 아래 성부(낮은음자리표, 기획 §M7.6) */
+  bass?: Note[];
+  /** 재생 횟수(없으면 기본 5회) */
+  plays?: number;
   /** 전조: 이 틱부터 으뜸음(도)이 바뀐다. 계이름·솔페지를 새 도로 읽는다(기획 §M7.5) */
   modulation?: { at: number; tonic: number };
   /** 4분음표 기준 BPM */

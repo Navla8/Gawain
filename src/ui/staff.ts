@@ -20,6 +20,8 @@ export interface StaffOptions {
   bars: number;
   /** 못갖춘마디 길이(틱). 첫 마디가 이만큼만 있다 */
   pickup?: number;
+  /** 낮은음자리표(없으면 높은음자리표) */
+  clef?: 'bass';
   /** Note 인덱스별 색 */
   color?: (src: number) => string | undefined;
   /** Note 인덱스별 아래 라벨 */
@@ -59,11 +61,16 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
   const ink = 'var(--text)';
 
   // 머리: 음자리표, 조표, 박자표
-  const clef = el('text', { x: 2, y: y(30) + 7, 'font-size': 58, fill: ink, class: 'clef' }, svg);
-  clef.textContent = '𝄞';
+  // 낮은음자리표는 실제 음 자리(step)를 12칸 올려 그린다(G2가 첫째 줄). 조표 자리는 높은음자리표보다 한 줄 아래
+  const bass = o.clef === 'bass';
+  const shift = bass ? 12 : 0;
+  const clef = bass
+    ? el('text', { x: 4, y: y(36) + 15, 'font-size': 34, fill: ink, class: 'clef' }, svg)
+    : el('text', { x: 2, y: y(30) + 7, 'font-size': 58, fill: ink, class: 'clef' }, svg);
+  clef.textContent = bass ? '𝄢' : '𝄞';
   let x = 40;
   for (const k of keySignatureSteps(o.fifths)) {
-    const t = el('text', { x, y: y(k.step) + 4, 'font-size': 15, fill: ink }, svg);
+    const t = el('text', { x, y: y(k.step - (bass ? 2 : 0)) + 4, 'font-size': 15, fill: ink }, svg);
     t.textContent = accidentalSymbol(k.acc);
     x += 8;
   }
@@ -100,7 +107,8 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     let hx = x + 10;
     const held = i > 0 && glyphs[i - 1].tie && glyphs[i - 1].midi === g.midi; // 붙임줄로 이어져 다시 소리 내지 않는 음
     if (g.midi !== null) {
-      const sp = spell(g.midi, o.fifths, o.key?.minor, o.notes[g.src].spell);
+      const sp0 = spell(g.midi, o.fifths, o.key?.minor, o.notes[g.src].spell);
+      const sp = { ...sp0, step: sp0.step + shift };
       const cur = accState.get(sp.step) ?? keyAccidental(sp.letter, o.fifths);
       if (cur !== sp.acc && !held) {
         const t = el('text', { x: hx - 4, y: y(sp.step) + 5, 'font-size': 15, stroke: 'none' }, grp);
@@ -149,7 +157,7 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
   // 붙임줄
   glyphs.forEach((g, i) => {
     if (!g.tie || !glyphs[i + 1] || g.midi === null) return;
-    const st = spell(g.midi, o.fifths, o.key?.minor, o.notes[g.src].spell).step;
+    const st = spell(g.midi, o.fifths, o.key?.minor, o.notes[g.src].spell).step + shift;
     const up = st >= 34;
     const yy = y(st) + (up ? -7 : 7);
     const x1 = positions[i] + 5, x2 = positions[i + 1] - 5;

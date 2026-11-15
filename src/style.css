@@ -380,3 +380,10 @@ h2 { margin: 8px 0 -4px; font-family: var(--font-mono); font-size: 12px; color: 
 .history p b { font-family: var(--font-display); font-size: 20px; font-weight: 400; }
 .history p em { font-style: normal; color: var(--accent-text); }
 .head + .info { margin-top: 0; }
+
+/* 2성부(기획 §M7.6) */
+.staff-box.two { display: flex; flex-direction: column; gap: 4px; }
+.seg.voices { display: flex; gap: 6px; }
+.seg.voices:empty { display: none; }
+.seg.voices button { flex: 1; padding: 8px 0; border: 1px solid var(--line); border-radius: 10px; }
+.seg.voices button.on { border-color: var(--text); }

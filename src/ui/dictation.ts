@@ -8,7 +8,7 @@ import { setCounting, touch } from '../activity.ts';
 import { renderStaff } from './staff.ts';
 import { keyRead, record, settings } from '../store.ts';
 import { app, h, header, pct } from './dom.ts';
-import { pianoKeys } from './keyboard.ts';
+import { KEY_LOW, pianoKeys } from './keyboard.ts';
 
 // 선율 받아쓰기와 리듬 받아쓰기 화면 (기획 §3, §5, M3)
 
@@ -51,29 +51,48 @@ function noteIcon(value: number): SVGSVGElement {
 
 const meterText = (p: Problem) => timeSignature(p).join('/');
 
+/** 여러 성부의 채점을 음 수로 묶은 점수(한 성부면 그 성부 점수와 같다) */
+function combined(rs: GradeResult[]) {
+  let pn = 0, po = 0, rn = 0, ro = 0;
+  for (const r of rs) for (const i of r.items) {
+    if (!i.truth) continue;
+    rn++;
+    if (i.verdict === 'ok' || i.verdict === 'pitch') ro++;
+    if (i.truth.midi !== null) { pn++; if (i.verdict === 'ok' || i.verdict === 'rhythm') po++; }
+  }
+  return { pitchScore: pn ? po / pn : 1, rhythmScore: rn ? ro / rn : 1 };
+}
+
+/** 2성부를 함께 친다. 길이(초)를 돌려준다 */
+const playVoices = (vs: Note[][], tempo: number) => Math.max(...vs.map((v) => playNotes(v, tempo)));
+
 /** 리듬 받아쓰기 점수: 쉼표 자리에 음표(채점기의 '음높이 틀림')도 리듬 틀림으로 친다 */
 const rhythmOnlyScore = (r: GradeResult) => {
   const truth = r.items.filter((i) => i.truth).length;
   return truth ? r.items.filter((i) => i.verdict === 'ok').length / truth : 1;
 };
 
-export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
+export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBass: Note[] = []) {
   stopAll();
   setCounting(true);
   const started = Date.now();
   const rhythm = !!ctx.rhythm;
   const pitch = rhythm ? p.notes.find((n) => n.midi !== null)!.midi! : 0;
-  let notes: Note[] = initial.map((n) => ({ ...n }));
+  // 2성부(기획 §M7.6): 성부마다 음표 목록. notes는 지금 적는 성부(v)
+  const two = !!p.bass;
+  const voices: Note[][] = [initial.map((n) => ({ ...n })), initialBass.map((n) => ({ ...n }))];
+  let v = 0;
+  let notes: Note[] = voices[0];
   let cursor = notes.length;
   let selected: number | null = null;
   let base = 12, dotted = false, triplet = false;
-  const maxPlays = ctx.plays ?? MAX_PLAYS;
+  const maxPlays = Math.min(ctx.plays ?? MAX_PLAYS, p.plays ?? MAX_PLAYS);
   let plays = maxPlays;
   const set = settings();
   const melodyClick = set.melodyClick && !ctx.exam;
   // 리듬 치기 버튼은 음높이가 없어 소리를 그대로 둔다
   const keySound = rhythm || (set.keySound && !ctx.exam);
-  const history: Note[][] = [];
+  const history: [number, Note[]][] = [];
 
   const dur = () => {
     let d = base * (dotted ? 1.5 : 1) * (triplet ? 2 / 3 : 1);
@@ -81,9 +100,19 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     return d;
   };
   const edit = (fn: () => void) => {
-    history.push(notes.map((n) => ({ ...n })));
+    history.push([v, notes.map((n) => ({ ...n }))]);
     fn();
+    voices[v] = notes;
     draw();
+  };
+  /** 적을 성부를 바꾼다 */
+  const switchTo = (to: number) => {
+    voices[v] = notes;
+    v = to;
+    notes = voices[v];
+    cursor = notes.length;
+    selected = null;
+    aim();
   };
 
   const staffBox = h('div', { class: 'staff-box' });
@@ -133,26 +162,33 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     playBtn.toggleAttribute('disabled', !playing && plays <= 0);
     playBtn.classList.toggle('stop', playing);
     if (scaleBtn) scaleBtn.toggleAttribute('disabled', playing);
-    const svg = renderStaff({
-      notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, cursor, selected, solfege: !rhythm, key: keyRead(p), takadimi: true,
+    const staffOf = (vi: number) => renderStaff({
+      notes: vi === v ? notes : voices[vi], fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup,
+      clef: vi === 1 ? 'bass' : p.clef, solfege: !rhythm, key: keyRead(p), takadimi: true,
+      ...(vi === v && { cursor, selected }),
       onTap: (i) => {
+        if (vi !== v) switchTo(vi);
         selected = selected === i ? null : i;
         cursor = i + 1;
         if (selected !== null && notes[i].midi !== null && keySound) playKey(notes[i].midi!);
         draw();
       },
     });
-    staffBox.replaceChildren(svg);
+    const svgs = two ? [staffOf(0), staffOf(1)] : [staffOf(0)];
+    const svg = svgs[v];
+    staffBox.replaceChildren(...svgs);
+    staffBox.classList.toggle('two', two);
+    voiceRow.replaceChildren(...(two ? ['위 성부', '아래 성부'].map((label, i) => h('button', { class: i === v ? 'on' : '', onclick: () => { switchTo(i); draw(); } }, label)) : []));
     const cx = svg.querySelector('.cursor')?.getAttribute('x');
     if (cx) staffBox.scrollLeft = Math.max(0, Number(cx) - staffBox.clientWidth + 60);
 
     const used = notes.reduce((t, n) => t + n.dur, 0);
     const beat = p.beatTicks ?? TPB;
-    status.textContent = selected !== null
+    status.textContent = (two ? (v ? '아래 성부 · ' : '위 성부 · ') : '') + (selected !== null
       ? `${selected + 1}번째 음 선택됨 · ${rhythm ? '' : '건반·'}길이를 누르면 바뀌어요`
       : used >= p.bars * len
         ? (used > p.bars * len ? `${p.bars}마디를 넘었어요` : `${p.bars}마디를 다 적었어요`)
-        : `${Math.floor(used / len) + 1}마디 ${+((used % len) / beat + 1).toFixed(2)}박째`;
+        : `${Math.floor(used / len) + 1}마디 ${+((used % len) / beat + 1).toFixed(2)}박째`);
 
     const toggle = (label: Node | string, on: boolean, onclick: () => void, title?: string) =>
       h('button', { class: on ? 'on' : '', onclick, 'aria-label': title ?? false }, label);
@@ -178,36 +214,50 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
           cursor = i;
           selected = null;
         }) }, '⌫'),
-        h('button', { 'aria-label': '되돌리기', onclick: () => { if (history.length) { notes = history.pop()!; cursor = Math.min(cursor, notes.length); selected = null; draw(); } } }, '↶'),
+        h('button', { 'aria-label': '되돌리기', onclick: () => {
+          if (!history.length) return;
+          const [hv, snap] = history.pop()!;
+          if (hv !== v) switchTo(hv);
+          notes = voices[v] = snap;
+          cursor = Math.min(cursor, notes.length);
+          selected = null;
+          draw();
+        } }, '↶'),
       ),
     );
   }
 
-  function finish(answer: Note[], r: GradeResult) {
+  function finish(answers: Note[][], rs: GradeResult[]) {
     stopAll();
-    const pitchScore = rhythm ? 1 : r.pitchScore;
-    const rhythmScore = rhythm ? rhythmOnlyScore(r) : r.rhythmScore;
+    const sc = combined(rs);
+    const pitchScore = rhythm ? 1 : sc.pitchScore;
+    const rhythmScore = rhythm ? rhythmOnlyScore(rs[0]) : sc.rhythmScore;
+    const miss = [...new Set(rs.flatMap((r) => missTags(r, p.fifths, rhythm, p.minor)))];
     record({
-      at: new Date().toISOString(), problemId: p.id, answer, pitchScore, rhythmScore,
+      at: new Date().toISOString(), problemId: p.id, answer: answers[0], ...(two && { answerBass: answers[1] }), pitchScore, rhythmScore,
       plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
-      ...(ctx.skill && { skill: ctx.skill, miss: missTags(r, p.fifths, rhythm, p.minor) }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }),
+      ...(ctx.skill && { skill: ctx.skill, miss }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }),
     });
     ctx.onGraded?.(passed({ pitchScore, rhythmScore }));
-    result(p, answer, r, ctx);
+    result(p, answers, rs, ctx);
   }
 
+  const truths = two ? [p.notes, p.bass!] : [p.notes];
   function submit() {
-    const bad = barProblems(notes, len, p.bars, offset);
-    if (bad.length && !confirm(`${bad.join(', ')}마디의 박 수가 맞지 않아요. 그대로 제출할까요?`)) return;
-    finish(notes, grade(p.notes, notes));
+    voices[v] = notes;
+    const mine = truths.map((_, i) => voices[i]);
+    const bad = mine.map((ns, i) => barProblems(ns, len, p.bars, offset).map((b) => (two ? (i ? '아래 ' : '위 ') : '') + b));
+    if (bad.flat().length && !confirm(`${bad.flat().join(', ')}마디의 박 수가 맞지 않아요. 그대로 제출할까요?`)) return;
+    finish(mine, truths.map((t, i) => grade(t, mine[i])));
   }
 
   /** 배치고사에서 모르는 문항은 0점으로 넘긴다 */
   function giveUp() {
-    finish([], grade(p.notes, []));
+    finish(truths.map(() => []), truths.map((t) => grade(t, [])));
   }
 
-  // 입력: 선율은 건반, 리듬은 치기 버튼
+  // 입력: 선율은 건반, 리듬은 치기 버튼. 낮은음자리표·2성부는 건반을 C2부터
+  const voiceRow = h('div', { class: 'seg voices' });
   let pad: HTMLElement[];
   let aim = () => {};
   if (rhythm) {
@@ -216,10 +266,10 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
       h('button', { class: 'tap rest', onclick: () => input(null) }, '쉼표'),
     )];
   } else {
-    const keys = pianoKeys(input);
+    const keys = pianoKeys(input, two || p.clef === 'bass' ? 36 : KEY_LOW);
     pad = [keys.strip, keys.keyboard];
-    // 건반을 문제 음역 가운데로
-    aim = () => keys.aim(p.notes.find((n) => n.midi !== null)!.midi! - 5);
+    // 건반을 지금 적는 성부의 음역 가운데로
+    aim = () => keys.aim(truths[v].find((n) => n.midi !== null)!.midi! - 5);
   }
 
   const first = p.notes.find((n) => n.midi !== null)!.midi!;
@@ -227,11 +277,13 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     header(p.title, ctx.step),
     h('p', { class: 'info' }, rhythm
       ? `${meterText(p)} · ${p.bars}마디 · 리듬만 적어요`
-      : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디${p.pickup ? ' · 못갖춘마디(한 박)' : ''} · 첫 음 ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)}`),
+      : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디${p.pickup ? ' · 못갖춘마디(한 박)' : ''}${p.clef === 'bass' ? ' · 낮은음자리표' : ''} · 첫 음 ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)}`
+        + (two ? ` · 아래 성부 첫 음 ${solfa(p.bass![0].midi!, p.fifths)} ${noteName(p.bass![0].midi!, p.fifths)}` : '')),
     ctx.exam || !melodyClick || !keySound
       ? h('p', { class: 'info' }, [ctx.exam && `실전 조건 · 재생 ${maxPlays}회`, !melodyClick && '선율 중 메트로놈 없음', !keySound && '건반 소리 없음'].filter(Boolean).join(' · '))
       : '',
     h('div', { class: 'listen' }, playBtn, scaleBtn),
+    voiceRow,
     staffBox,
     status,
     palette,
@@ -250,41 +302,24 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
 const COLORS: Record<string, string> = { ok: 'var(--accent)', pitch: 'var(--signal-danger)', rhythm: 'var(--signal-caution)', both: 'var(--signal-danger)', extra: 'var(--muted)', missing: 'var(--signal-danger)' };
 const MARKS: Record<string, string> = { ok: '✓', pitch: '음', rhythm: '박', both: '음박', extra: '+', missing: '빠짐' };
 
-function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
+function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) {
   setCounting(true);
   const rhythm = !!ctx.rhythm;
   const len = barTicks(p);
   const offset = p.pickup ? len - p.pickup : 0;
+  const two = !!p.bass;
+  const truths = two ? [p.notes, p.bass!] : [p.notes];
   /** 마디 이름: 못갖춘마디가 있으면 그 마디가 0 */
   const barLabel = (b: number) => (offset ? (b ? `${b}마디` : '못갖춘마디') : `${b + 1}마디`);
-  // 전조 뒤 음은 새 도(조표 하나 더 ♯ 쪽)로 읽는다(기획 §M7.5)
-  // 정답 음은 반음계 표기 힌트(Note.spell)를 따른다
+  // 전조 뒤 음은 새 도(조표 하나 더 ♯ 쪽)로 읽는다(기획 §M7.5). 정답 음은 반음계 표기 힌트(Note.spell)를 따른다
   const name = (m: number | null, start = 0, prefer?: 1 | -1) => {
     if (m === null) return '쉼표';
     if (rhythm) return '음표';
     const moved = !!p.modulation && start >= p.modulation.at;
     return `${solfa(m, p.fifths + (moved ? 1 : 0), keyRead(p), moved ? undefined : prefer)}(${noteName(m, p.fifths, p.minor, prefer)})`;
   };
-  const hint = (e: { src: number[] }) => p.notes[e.src[0]]?.spell;
-  const bySrc = (pick: (i: GradeItem) => GradeItem['truth']) => {
-    const map = new Map<number, GradeItem>();
-    for (const it of r.items) pick(it)?.src.forEach((s) => map.set(s, it));
-    return map;
-  };
-  const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
-  const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, solfege: !rhythm, key: keyRead(p), takadimi: true, modulation: p.modulation };
 
-  const mine = renderStaff({
-    ...staff, notes: answer,
-    color: (s) => COLORS[ansMap.get(s)?.verdict ?? 'extra'],
-    label: (s) => { const v = ansMap.get(s)!; return v ? (rhythm && v.verdict === 'pitch' ? '쉼' : MARKS[v.verdict]) + (v.octave ? '8' : '') : ''; },
-  });
-  const truth = renderStaff({
-    ...staff, notes: p.notes,
-    color: (s) => (truthMap.get(s)?.verdict === 'ok' ? undefined : COLORS[truthMap.get(s)?.verdict ?? 'ok']),
-  });
-
-  // 같은 마디만 정답 → 내 답 순서로 들려준다(b는 그린 마디 순번)
+  // 같은 마디만 정답 → 내 답 순서로 들려준다(b는 그린 마디 순번, 2성부는 함께)
   const barNotes = (ns: Note[], b: number): Note[] => {
     const out: Note[] = [];
     let t = offset;
@@ -297,54 +332,79 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
   };
   const compare = (b: number) => {
     stopAll();
-    const t = playNotes(barNotes(p.notes, b), p.tempo);
-    later(t + 0.7, () => playNotes(barNotes(answer, b), p.tempo));
+    const t = playVoices(truths.map((x) => barNotes(x, b)), p.tempo);
+    later(t + 0.7, () => playVoices(answers.map((x) => barNotes(x, b)), p.tempo));
   };
 
-  const errors = r.items.filter((i) => i.verdict !== 'ok').map((i) => {
-    const ev = (i.truth ?? i.answer)!;
-    const b = Math.min(p.bars - (offset ? 0 : 1), Math.floor((ev.start + offset) / len));
-    const t = i.truth, a = i.answer;
-    const text = i.verdict === 'missing' ? `빠진 음: ${name(t!.midi, t!.start, hint(t!))} ${durName(t!.dur)}`
-      : i.verdict === 'extra' ? `남는 음: ${name(a!.midi, a!.start)} ${durName(a!.dur)}`
-      : [
-        i.verdict !== 'rhythm' && `${name(a!.midi, a!.start)} → ${name(t!.midi, t!.start, hint(t!))}${i.octave ? ' (옥타브)' : ''}`,
-        i.verdict !== 'pitch' && `${durName(a!.dur)} → ${durName(t!.dur)}`,
-      ].filter(Boolean).join(' · ') + '여야 해요';
-    return h('li', {}, h('button', { class: 'mini', onclick: () => compare(b) }, `▶ ${barLabel(b)}`), h('span', {}, text));
+  const sheets: SVGSVGElement[] = [];
+  const parts = truths.map((truthNotes, vi) => {
+    const r = rs[vi], answer = answers[vi];
+    const hint = (e: { src: number[] }) => truthNotes[e.src[0]]?.spell;
+    const bySrc = (pick: (i: GradeItem) => GradeItem['truth']) => {
+      const map = new Map<number, GradeItem>();
+      for (const it of r.items) pick(it)?.src.forEach((s) => map.set(s, it));
+      return map;
+    };
+    const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
+    const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, clef: vi ? 'bass' as const : p.clef, solfege: !rhythm, key: keyRead(p), takadimi: true, modulation: p.modulation };
+    const mine = renderStaff({
+      ...staff, notes: answer,
+      color: (s) => COLORS[ansMap.get(s)?.verdict ?? 'extra'],
+      label: (s) => { const x = ansMap.get(s)!; return x ? (rhythm && x.verdict === 'pitch' ? '쉼' : MARKS[x.verdict]) + (x.octave ? '8' : '') : ''; },
+    });
+    const truth = renderStaff({
+      ...staff, notes: truthNotes,
+      color: (s) => (truthMap.get(s)?.verdict === 'ok' ? undefined : COLORS[truthMap.get(s)?.verdict ?? 'ok']),
+    });
+    sheets.push(mine, truth);
+    const errors = r.items.filter((i) => i.verdict !== 'ok').map((i) => {
+      const ev = (i.truth ?? i.answer)!;
+      const b = Math.min(p.bars - (offset ? 0 : 1), Math.floor((ev.start + offset) / len));
+      const t = i.truth, a = i.answer;
+      const text = i.verdict === 'missing' ? `빠진 음: ${name(t!.midi, t!.start, hint(t!))} ${durName(t!.dur)}`
+        : i.verdict === 'extra' ? `남는 음: ${name(a!.midi, a!.start)} ${durName(a!.dur)}`
+        : [
+          i.verdict !== 'rhythm' && `${name(a!.midi, a!.start)} → ${name(t!.midi, t!.start, hint(t!))}${i.octave ? ' (옥타브)' : ''}`,
+          i.verdict !== 'pitch' && `${durName(a!.dur)} → ${durName(t!.dur)}`,
+        ].filter(Boolean).join(' · ') + '여야 해요';
+      return h('li', {}, h('button', { class: 'mini', onclick: () => compare(b) }, `▶ ${barLabel(b)}`), h('span', {}, (two ? (vi ? '아래 · ' : '위 · ') : '') + text));
+    });
+    return { mine, truth, errors };
   });
 
-  const pitchScore = rhythm ? 1 : r.pitchScore;
-  const rhythmScore = rhythm ? rhythmOnlyScore(r) : r.rhythmScore;
+  const sc = combined(rs);
+  const pitchScore = rhythm ? 1 : sc.pitchScore;
+  const rhythmScore = rhythm ? rhythmOnlyScore(rs[0]) : sc.rhythmScore;
   const perfect = pitchScore === 1 && rhythmScore === 1;
   const ok = passed({ pitchScore, rhythmScore });
+  const errors = parts.flatMap((x) => x.errors);
   // 다시 풀기는 연습으로만 남긴다(답을 본 뒤라 단원 판정에 넣지 않음)
   const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, retry: undefined, plays: undefined, exam: undefined, onGraded: undefined };
   app.replaceChildren(
     header(p.title, ctx.step),
     h('div', { class: 'scores' + (perfect ? ' perfect' : '') },
-      rhythm ? '' : h('div', {}, h('b', {}, pct(r.pitchScore)), h('span', {}, '음높이')),
+      rhythm ? '' : h('div', {}, h('b', {}, pct(sc.pitchScore)), h('span', {}, '음높이')),
       h('div', {}, h('b', {}, pct(rhythmScore)), h('span', {}, '리듬')),
     ),
     ctx.skill ? h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '통과' : '80%에 못 미쳤어요', ctx.placement ? '' : h('span', {}, ok ? '' : ' · 이 단원을 더 연습해요')) : '',
-    h('h2', {}, '내 답'), h('div', { class: 'staff-box' }, mine),
-    h('h2', {}, '정답'), h('div', { class: 'staff-box' }, truth),
+    h('h2', {}, '내 답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.mine)),
+    h('h2', {}, '정답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.truth)),
     h('p', { class: 'legend' },
       h('span', { class: 'ok' }, '●'), ' ✓ 맞음 · ',
       ...(rhythm ? [] : [h('span', { class: 'danger' }, '●'), ' 음 음높이 틀림 · ']),
       h('span', { class: 'caution' }, '●'), ' 박 리듬 틀림 · + 남는 음 · 빠짐 빠진 음', rhythm ? '' : ' · 8 옥타브만 틀림'),
     errors.length ? h('ul', { class: 'errors' }, ...errors) : h('p', { class: 'great' }, '완벽해요!'),
     h('div', { class: 'actions' },
-      h('button', { onclick: () => { stopAll(); playNotes(p.notes, p.tempo); } }, '정답 듣기'),
-      h('button', { onclick: () => { stopAll(); playNotes(answer, p.tempo); } }, '내 답 듣기'),
+      h('button', { onclick: () => { stopAll(); playVoices(truths, p.tempo); } }, '정답 듣기'),
+      h('button', { onclick: () => { stopAll(); playVoices(answers, p.tempo); } }, '내 답 듣기'),
       h('button', { class: 'stop-all', onclick: stopAll }, '■  정지'),
-      h('button', { class: 'half', onclick: () => solve(p, practice, answer) }, '고쳐 보기'),
+      h('button', { class: 'half', onclick: () => solve(p, practice, answers[0], answers[1]) }, '고쳐 보기'),
       h('button', { class: 'half', onclick: () => solve(p, practice) }, '처음부터'),
       h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
     ),
   );
   // 결과 악보는 한눈에 비교하도록 화면 폭에 맞춰 줄인다(최소 65%)
-  for (const svg of [mine, truth]) {
+  for (const svg of sheets) {
     const natural = Number(svg.getAttribute('width'));
     const box = svg.parentElement!.clientWidth - 2;
     if (natural > box) svg.style.width = `${Math.max(box, natural * 0.65)}px`;

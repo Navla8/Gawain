@@ -39,7 +39,7 @@ const FRESH_RHYTHM: Record<string, (p: Problem) => boolean> = {
 };
 
 test('선율 사다리: 받아쓰기 단원마다 생성기 설정이 있다', () => {
-  for (const s of ladder('dictation')) assert.ok(UNITS[s.id], s.id);
+  for (const s of ladder('dictation').filter((x) => x.id !== 't5')) assert.ok(UNITS[s.id], s.id);
 });
 
 test('같은 시드는 같은 선율, id에 단원과 시드가 들어 있다', () => {
@@ -48,7 +48,7 @@ test('같은 시드는 같은 선율, id에 단원과 시드가 들어 있다', 
 });
 
 /** L4 반음계·전조 단원은 음계 밖 음이 나오므로 따로 검사한다(아래) */
-const L4 = ['g4a', 'g4b'];
+const L4 = ['g4a', 'g4b', 't5'];
 for (const s of ladder('dictation').filter((x) => !L4.includes(x.id))) {
   const u = UNITS[s.id];
   test(`${s.id} ${s.name}: 단원 규칙 (${SEEDS}개)`, () => {
@@ -64,7 +64,21 @@ for (const s of ladder('dictation').filter((x) => !L4.includes(x.id))) {
       if (u.pickup) assert.ok(p.pickup === 12 && p.notes[0].dur === 12 && p.notes[0].midi !== null, `${at}: 못갖춘마디`);
       else assert.equal(p.pickup, undefined, `${at}: 못갖춘마디 아님`);
       assert.ok(Math.abs(p.fifths) <= u.keys, `${at}: 조표`);
-      assert.ok(pitched(p).every((m) => m >= 53 && m <= 84), `${at}: 음역`);
+      // 음역: 높은음자리표 F3~C6, 낮은음자리표 C2~E4
+      const [lo, hi] = u.bass ? [36, 64] : [53, 84];
+      assert.equal(p.clef, u.bass ? 'bass' : undefined, `${at}: 음자리표`);
+      assert.ok(pitched(p).every((m) => m >= lo && m <= hi), `${at}: 음역`);
+      if (s.id === 'g5b') assert.equal(p.plays, 3, `${at}: 재생 3회`);
+      // 2성부: 아래 성부는 마디를 꽉 채우고, 마디 첫 음이 위 성부 마디 첫 음보다 낮고, 마지막은 으뜸음
+      if (u.bassLine) {
+        const b = p.bass!;
+        assert.equal(b.reduce((a, n) => a + n.dur, 0), barTicks(p) * u.bars, `${at}: 아래 성부 마디`);
+        assert.ok(b.every((n) => n.midi !== null && n.midi >= 36 && n.midi <= 57), `${at}: 아래 성부 음역`);
+        assert.ok(b.every((n) => MAJOR.includes(mod(n.midi! - p.tonic, 12))), `${at}: 아래 성부 음계`);
+        assert.equal(mod(b.at(-1)!.midi! - p.tonic, 12), 0, `${at}: 아래 성부 끝`);
+        assert.ok(b.every((n, i) => !i || Math.abs(n.midi! - b[i - 1].midi!) <= 7), `${at}: 아래 성부 도약`);
+        assert.ok(Math.min(...pitched(p)) > Math.max(...b.map((n) => n.midi!)) - 5, `${at}: 성부 겹침`);
+      } else assert.equal(p.bass, undefined);
       assert.equal(p.notes[0].midi !== null && p.notes.at(-1)!.midi !== null, true, `${at}: 쉼표로 시작·끝`);
       if (u.rhythm === '6/8') assert.equal(barTicks(p), 36, `${at}: 6/8`);
       if (u.minor === 1) assert.ok(p.minor, `${at}: 단조`);
@@ -129,7 +143,7 @@ test('홑박자 단원은 3/4도 나오고, 단조는 딸림화음(솔♯) 도�
 
 test('단원이 올라가도 음표 수는 한 번에 뛰지 않는다(4마디 단원 평균 차이 4개 이하)', () => {
   const avg = (id: string) => Array.from({ length: SEEDS }, (_, i) => pitched(melodyItem(id, i + 1)).length).reduce((a, b) => a + b, 0) / SEEDS;
-  const four = ladder('dictation').filter((s) => UNITS[s.id].bars === 4 && !L4.includes(s.id)).map((s) => [s.id, avg(s.id)] as const);
+  const four = ladder('dictation').filter((s) => !L4.includes(s.id) && UNITS[s.id].bars === 4 && s.level <= 3).map((s) => [s.id, avg(s.id)] as const);
   for (let i = 1; i < four.length; i++) assert.ok(four[i][1] - four[i - 1][1] <= 4, `${four[i - 1][0]} ${four[i - 1][1]} → ${four[i][0]} ${four[i][1]}`);
 });
 
@@ -175,5 +189,18 @@ test('g4b 딸림조 전조: 5마디부터 딸림조(새 도 = 솔), 새 조의 �
     assert.ok(Math.abs(second[0] - first.at(-1)!) <= 5, `${at}: 전조 지점 도약 ${first.at(-1)} → ${second[0]}`);
     assert.equal(mod(second.at(-1)! - p.modulation!.tonic, 12), 0, `${at}: 새 으뜸음으로 끝`);
     assert.ok(pitched(p).every((m) => m >= 53 && m <= 84), `${at}: 음역`);
+  }
+});
+
+test('t5 곡 채보: 공개 곡 선율, 마디를 꽉 채우고 조를 옮겨 건반 안에', async () => {
+  const { tuneItem, TUNES } = await import('../src/engine/melody.ts');
+  assert.ok(TUNES.length >= 5);
+  for (let seed = 1; seed <= 120; seed++) {
+    const p = tuneItem(seed);
+    assert.equal(durs(p).reduce((a, b) => a + b, 0), barTicks(p) * p.bars, `${p.title}: 마디`);
+    assert.ok(pitched(p).every((m) => m >= 53 && m <= 84), `${p.title}: 음역`);
+    assert.ok(Math.abs(p.fifths) <= 3);
+    assert.equal(mod(pitched(p).at(-1)! - p.tonic, 12), 0, `${p.title}: 으뜸음으로 끝`);
+    assert.deepEqual(tuneItem(seed), p);
   }
 });

@@ -30,11 +30,11 @@ export const LEVELS = [
   { level: 2, name: '주요 3화음과 8분음표', goal: '파·티 경향음, 딸림·버금딸림화음 도약, 8분·점4분음표, 종지·I·IV·V 진행' },
   { level: 3, name: '단조와 빠른 리듬', goal: '라 으뜸 단조, ii·vi·V7 도약, 16분음표·당김음·6/8·붙임줄, 못갖춘마디, 8마디 선율, 자리바꿈·V7·부3화음 진행' },
   { level: 4, name: '반음계와 전조', goal: '반음계 보조음·경과음, 부속화음, 셋잇단·둘잇단, 딸림조 전조, 2성부' },
-  { level: 5, name: '초견과 채보', goal: '8마디 실전 받아쓰기, 낮은음자리표, 초견 시창', planned: true },
+  { level: 5, name: '실전과 채보', goal: '낮은음자리표 선율, 8마디 실전 받아쓰기(재생 3회), 곡 채보' },
 ] as const;
 
 /** 지금 풀 수 있는 마지막 레벨 */
-export const MAX_LEVEL = 4;
+export const MAX_LEVEL = 5;
 
 export const SKILLS: Skill[] = [
   { id: 'd0a', track: 'degree', level: 0, name: '도·레·미' },
@@ -78,6 +78,10 @@ export const SKILLS: Skill[] = [
   { id: 'g3f', track: 'dictation', level: 3, name: '8마디', covers: ['g3e'] },
   { id: 'g4a', track: 'dictation', level: 4, name: '반음계 선율', prereq: ['d4a'], covers: ['g3c'] },
   { id: 'g4b', track: 'dictation', level: 4, name: '딸림조 전조 (8마디)', prereq: ['d4b'] },
+  { id: 'g4c', track: 'dictation', level: 4, name: '2성부 (선율 + 베이스)', prereq: ['h2b'] },
+  { id: 'g5a', track: 'dictation', level: 5, name: '낮은음자리표 선율' },
+  { id: 'g5b', track: 'dictation', level: 5, name: '8마디 실전 (재생 3회)', covers: ['g3e'] },
+  { id: 't5', track: 'dictation', level: 5, name: '곡 채보 (공개 곡)' },
 
   // 화성 듣기(기획 §M7.4): 생성기는 engine/harmony.ts
   { id: 'h1', track: 'harmony', level: 1, name: '3화음 성질 (장·단·감·증)' },

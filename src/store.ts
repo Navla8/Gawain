@@ -9,6 +9,8 @@ export interface Attempt {
   problemId: string;
   /** 받아쓰기는 적은 음표, 계이름 듣기는 누른 계이름 */
   answer: Note[] | string[];
+  /** 2성부 받아쓰기의 아래 성부 답 */
+  answerBass?: Note[];
   pitchScore: number;
   rhythmScore: number;
   plays: number;

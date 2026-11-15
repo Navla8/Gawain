@@ -3,7 +3,7 @@ import { bestOf, computeProgress, weakness, type Progress } from '../engine/prog
 import { MAX_TOTAL, frontier, isExam, learnUnit, nextPlacement, placementLeft, planMatch, retryIds, stepDown, type Slot } from '../engine/session.ts';
 import { contentTags } from '../engine/grade.ts';
 import { degreeItem, rhythmItem } from '../engine/drills.ts';
-import { melodyItem } from '../engine/melody.ts';
+import { melodyItem, tuneItem } from '../engine/melody.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll, playNotes } from '../audio/synth.ts';
@@ -120,6 +120,7 @@ function show(run: Run, slot: Slot, step: [number, number]) {
   if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weak), ctx);
   else if (s.track === 'harmony') harmonyScreen(harmonyItem(id, seed(), weak), ctx);
   else if (s.track === 'rhythm') solve(fixed !== undefined ? rhythmAt(fixed) : bestOf(rhythmAt, (it) => contentTags(it.notes, it.fifths, true), seed(), weak), { ...ctx, rhythm: true });
+  else if (id === 't5') solve(tuneItem(fixed ?? seed()), ctx);
   else solve(fixed !== undefined ? melodyAt(fixed) : bestOf(melodyAt, (it) => contentTags(it.notes, it.fifths, false, it.minor), seed(), weak), ctx);
 }
 

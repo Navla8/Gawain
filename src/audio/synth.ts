@@ -43,7 +43,9 @@ function piano(midi: number, at: number, length: number, velocity = 0.8) {
   env.gain.linearRampToValueAtTime(velocity * 0.4, at + 0.005);
   env.gain.setTargetAtTime(velocity * 0.15, at + 0.005, decay / 4);
   env.gain.setTargetAtTime(0.0001, at + length, 0.08);
-  [[1, 1], [2, 0.45], [3, 0.2], [4, 0.1], [5, 0.04]].forEach(([h, g]) => {
+  // 낮은 음은 기음이 작은 스피커에서 잘 안 들려 2·3배음을 키운다(기획 §M7.6)
+  const low = midi < 48;
+  [[1, 1], [2, low ? 0.7 : 0.45], [3, low ? 0.35 : 0.2], [4, 0.1], [5, 0.04]].forEach(([h, g]) => {
     const o = c.createOscillator();
     const og = c.createGain();
     o.frequency.value = freq(midi) * h * (1 + 0.0004 * h * h); // 약간의 비조화성
@@ -137,7 +139,9 @@ export function playProblem(p: Problem, withCadence: boolean, melodyClick = true
   const melodyBeats = Math.ceil(p.notes.reduce((a, n) => a + n.dur, 0) / beatTicks);
   for (let b = 0; b < count + (melodyClick ? melodyBeats : 0); b++) click(t + b * beat, b % p.beatsPerBar === 0, b < count ? 0.3 : 0.12);
   t += count * beat;
-  return playNotes(p.notes, p.tempo, t - c.currentTime);
+  // 2성부는 아래 성부를 함께 친다
+  const bass = p.bass ? playNotes(p.bass, p.tempo, t - c.currentTime) : 0;
+  return Math.max(bass, playNotes(p.notes, p.tempo, t - c.currentTime));
 }
 
 /** 화성 듣기: 화음을 차례로(베이스 + 위 성부). arpeggio면 첫 화음을 아래부터 펼친 뒤 함께 친다. 전체 길이(초)를 돌려준다 */

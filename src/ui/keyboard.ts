@@ -9,12 +9,12 @@ const WHITE_NAMES = ['C', '', 'D', '', 'E', 'F', '', 'G', '', 'A', '', 'B'];
  * 건반 위를 쓸어도 스크롤되지 않고, 위쪽 띠를 끌어야 스크롤된다(누르려다 밀리는 것 방지).
  * 화면에 붙인 뒤 aim(midi)로 그 음이 왼쪽 끝에 오도록 옮긴다.
  */
-export function pianoKeys(onKey: (midi: number) => void) {
+export function pianoKeys(onKey: (midi: number) => void, low = KEY_LOW) {
   const keyboard = h('div', { class: 'keyboard' });
   const whites = h('div', { class: 'whites' });
   const strip = h('div', { class: 'strip', 'aria-label': '건반 이동' });
   const thumb = h('div', { class: 'thumb' });
-  for (let m = KEY_LOW; m <= KEY_HIGH; m++) {
+  for (let m = low; m <= KEY_HIGH; m++) {
     const black = [1, 3, 6, 8, 10].includes(m % 12);
     const key = h('button', {
       class: black ? 'key black' : m % 12 === 0 ? 'key white c' : 'key white',
@@ -49,7 +49,7 @@ export function pianoKeys(onKey: (midi: number) => void) {
     strip.addEventListener('pointerup', up);
   });
   const aim = (midi: number) => {
-    const target = keyboard.querySelector(`[data-midi="${Math.max(KEY_LOW, midi)}"]`) as HTMLElement | null;
+    const target = keyboard.querySelector(`[data-midi="${Math.max(low, midi)}"]`) as HTMLElement | null;
     if (target) keyboard.scrollLeft = target.closest('.wkey')!.getBoundingClientRect().left - keyboard.getBoundingClientRect().left;
     syncThumb();
   };
