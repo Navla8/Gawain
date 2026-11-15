@@ -93,6 +93,9 @@ test('대련 오답은 다음 날부터 같은 문제로 대련에 다시 나오
   assert.deepEqual(plan.filter((s) => s.role === 'retry'), [{ track: 'dictation', role: 'retry', skill: 'g1b', problem: 'mel-g1b-5' }]);
   const fixed = { ...miss, at: new Date(2026, 10, 3, 12).toISOString(), pitchScore: 1, retry: true };
   assert.deepEqual(retryIds([...base, miss, fixed], p, '2026-11-04'), []);
+  // 단원 없는 연습('고쳐 보기')으로 맞힌 것은 재출제를 풀지 않는다(M3)
+  const practice = { at: new Date(2026, 10, 3, 12).toISOString(), problemId: 'mel-g1b-5', pitchScore: 1, rhythmScore: 1 };
+  assert.deepEqual(retryIds([...base, miss, practice], p, '2026-11-04'), ['mel-g1b-5']);
   // 계이름 듣기는 약점 가중치로 만들어 같은 문제를 다시 만들 수 없어 내지 않는다
   const deg = { ...miss, skill: 'd1b', problemId: 'deg-d1b-5' };
   assert.deepEqual(retryIds([...base, deg], computeProgress([...base, deg]), '2026-11-03'), []);

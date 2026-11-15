@@ -78,11 +78,12 @@ function planReviews(p: Progress, today: string): Slot[] {
 /** 실전 조건(재생 횟수를 줄임): 한 번 이상 점검을 통과한 단원의 점검·실력 확인(기획 §M6.3) */
 export const isExam = (p: Progress, slot: Slot) => (slot.role === 'review' || slot.role === 'check') && p.skills[slot.skill!].reviews >= 1;
 
-/** 대련에 다시 낼 지난 오답: 대련에서 못 넘긴 문제 중 그 뒤로 통과한 적 없고, 하루가 지났고, 단원을 아직 숙달하지 않은 것(오래된 것부터).
+/** 대련에 다시 낼 지난 오답: 대련에서 못 넘긴 문제 중 그 뒤로 대련에서 통과한 적 없고, 하루가 지났고, 단원을 아직 숙달하지 않은 것(오래된 것부터).
  *  같은 문제를 다시 만들 수 있는 받아쓰기(mel-)·리듬(rhy-)만. 계이름 듣기는 약점 가중치로 만들어 다시 만들 수 없다 */
 export function retryIds(attempts: (SkillAttempt & { problemId?: string })[], p: Progress, today: string): string[] {
   const latest = new Map<string, SkillAttempt>();
-  for (const a of [...attempts].sort((x, y) => x.at.localeCompare(y.at))) if (a.problemId) latest.set(a.problemId, a);
+  // 대련 시도(skill 있음)만: 정답을 본 직후의 '고쳐 보기'(skill 없음) 통과는 재출제를 풀지 않는다
+  for (const a of [...attempts].sort((x, y) => x.at.localeCompare(y.at))) if (a.problemId && a.skill) latest.set(a.problemId, a);
   const missed = new Set(attempts.filter((a) => a.skill && !a.placement && a.problemId && !passed(a)).map((a) => a.problemId!));
   return [...missed].filter((id) => {
     const [kind, unit] = id.split('-');
