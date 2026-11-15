@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { grade, tally, contentTags, missTags } from '../src/engine/grade.ts';
+import { grade, tally, inheritSpell, contentTags, missTags } from '../src/engine/grade.ts';
 import type { Note } from '../src/engine/types.ts';
 
 const mel = (...xs: [number | null, number][]): Note[] => xs.map(([midi, dur]) => ({ midi, dur }));
@@ -84,4 +84,13 @@ test('약점 표식: 선율은 틀린 음으로 가는 계이름 진행, 리듬�
   assert.deepEqual(missTags(grade(r, mel([71, 12], [71, 12], [71, 24])), 0, true), ['4분쉼표']);
   // 단조(조표 기준 라 으뜸)
   assert.deepEqual(contentTags(mel([69, 12], [68, 12], [69, 24]), 0, false, true).filter((x) => x.includes('→')), ['라→솔♯', '솔♯→라']);
+});
+
+test('맞게 적은 음은 정답 음의 표기(올림·내림)를 물려받는다(M6)', () => {
+  const t: Note[] = [{ midi: 71, dur: 12, spell: 1 }, { midi: 72, dur: 12 }, { midi: 70, dur: 24 }];
+  const a: Note[] = [{ midi: 71, dur: 12 }, { midi: 72, dur: 12 }, { midi: 69, dur: 24 }];
+  const out = inheritSpell(grade(t, a).items, t, a);
+  assert.equal(out[0].spell, 1); // 맞은 음: 정답의 표기
+  assert.equal(out[2].spell, undefined); // 틀린 음: 그대로
+  assert.equal(a[0].spell, undefined); // 원본은 건드리지 않음
 });

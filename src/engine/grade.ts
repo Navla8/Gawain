@@ -72,6 +72,17 @@ export function tally(rs: { items: GradeItem[] }[], rhythmOnly = false) {
   return { pitchScore: pn ? po / pn : 1, rhythmScore: rn ? ro / rn : 1 };
 }
 
+/** 음높이를 맞게 적은 음(ok·rhythm)은 정답 음의 표기 힌트(Note.spell)를 물려받아 같은 글자로 그려진다. 새 배열을 돌려준다 */
+export function inheritSpell(items: GradeItem[], truthNotes: Note[], answer: Note[]): Note[] {
+  const out = answer.map((n) => ({ ...n }));
+  for (const it of items) {
+    if (!it.truth || !it.answer || (it.verdict !== 'ok' && it.verdict !== 'rhythm')) continue;
+    const spell = truthNotes[it.truth.src[0]]?.spell;
+    if (spell) for (const s of it.answer.src) out[s].spell = spell;
+  }
+  return out;
+}
+
 // ───────── 약점 표식 (기획 §M6.2) ─────────
 // 선율은 '도→라'처럼 그 음으로 가는 계이름 진행과 '↑6도'처럼 음정(악보 글자 자리로 센 도수, 같은 음은 없음),
 // 리듬은 '16분'·'4분쉼표'처럼 음 길이로 적는다(기획 §M6.2, §M7.3).

@@ -1,5 +1,5 @@
 import { TPB, barTicks, timeSignature, type Note, type Problem } from '../engine/types.ts';
-import { durName, grade, tally, missTags, type GradeItem, type GradeResult } from '../engine/grade.ts';
+import { durName, grade, inheritSpell, tally, missTags, type GradeItem, type GradeResult } from '../engine/grade.ts';
 import { barProblems } from '../engine/score.ts';
 import { noteName, solfa, keyName } from '../engine/theory.ts';
 import { passed } from '../engine/progress.ts';
@@ -330,7 +330,7 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
     const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
     const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, clef: vi ? 'bass' as const : p.clef, solfege: !rhythm, key: keyRead(p), takadimi: true, modulation: p.modulation };
     const mine = renderStaff({
-      ...staff, notes: answer,
+      ...staff, notes: inheritSpell(r.items, truthNotes, answer),
       color: (s) => COLORS[ansMap.get(s)?.verdict ?? 'extra'],
       label: (s) => { const x = ansMap.get(s)!; return x ? (rhythm && x.verdict === 'pitch' ? '쉼' : MARKS[x.verdict]) + (x.octave ? '8' : '') : ''; },
     });
