@@ -14,9 +14,9 @@ export interface GradeItem {
 
 export interface GradeResult {
   items: GradeItem[];
-  /** 정답 음(쉼표 제외) 중 음높이를 맞힌 비율 */
+  /** 정답 음(쉼표 제외)과 남는 음 중 음높이를 맞힌 비율 */
   pitchScore: number;
-  /** 정답 소리 단위(쉼표 포함) 중 길이를 맞힌 비율 */
+  /** 정답 소리 단위(쉼표 포함)와 남는 소리 중 길이를 맞힌 비율 */
   rhythmScore: number;
 }
 
@@ -52,14 +52,24 @@ export function grade(truthNotes: Note[], answerNotes: Note[]): GradeResult {
   }
   items.reverse();
 
-  const notes = items.filter((x) => x.truth && x.truth.midi !== null);
-  const pitchOk = notes.filter((x) => x.verdict === 'ok' || x.verdict === 'rhythm').length;
-  const rhythmOk = items.filter((x) => x.verdict === 'ok' || x.verdict === 'pitch').length;
-  return {
-    items,
-    pitchScore: notes.length ? pitchOk / notes.length : 1,
-    rhythmScore: T.length ? rhythmOk / T.length : 1,
-  };
+  return { items, ...tally([{ items }]) };
+}
+
+/**
+ * 점수 규칙 한곳(여러 성부는 음 수로 묶는다).
+ * 음높이: 정답 음 중 맞힌 수 / (정답 음 + 남는 음). 리듬: 정답 소리 중 길이를 맞힌 수 / (정답 소리 + 남는 소리).
+ * 정답이 쉼표인데 음표를 적은 것(판정 'pitch')은 리듬 틀림. 리듬만 채점하면 'ok'만 맞다(쉼표↔음표 구분이 곧 리듬)
+ */
+export function tally(rs: { items: GradeItem[] }[], rhythmOnly = false) {
+  let pn = 0, po = 0, rn = 0, ro = 0;
+  for (const r of rs) for (const i of r.items) {
+    if (i.verdict === 'extra') { rn++; if (i.answer!.midi !== null) pn++; continue; }
+    rn++;
+    const restFilled = i.verdict === 'pitch' && i.truth!.midi === null;
+    if (i.verdict === 'ok' || (i.verdict === 'pitch' && !rhythmOnly && !restFilled)) ro++;
+    if (i.truth!.midi !== null) { pn++; if (i.verdict === 'ok' || i.verdict === 'rhythm') po++; }
+  }
+  return { pitchScore: pn ? po / pn : 1, rhythmScore: rn ? ro / rn : 1 };
 }
 
 // ───────── 약점 표식 (기획 §M6.2) ─────────

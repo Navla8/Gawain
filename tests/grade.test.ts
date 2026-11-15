@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { grade, contentTags, missTags } from '../src/engine/grade.ts';
+import { grade, tally, contentTags, missTags } from '../src/engine/grade.ts';
 import type { Note } from '../src/engine/types.ts';
 
 const mel = (...xs: [number | null, number][]): Note[] => xs.map(([midi, dur]) => ({ midi, dur }));
@@ -24,7 +24,32 @@ test('남는 음', () => {
   const r = grade(truth, ans);
   assert.equal(r.items.filter((i) => i.verdict === 'extra').length, 1);
   assert.equal(r.items.find((i) => i.verdict === 'extra')!.answer!.midi, 63);
+  assert.equal(r.pitchScore, 6 / 7);
+  assert.equal(r.rhythmScore, 5 / 7);
+});
+
+test('남는 음을 여러 개 끼워도 만점이 아니다(H1)', () => {
+  const t = mel([60, 12], [62, 12], [64, 12], [65, 12], [67, 24], [64, 24]);
+  const ans = mel([60, 12], [61, 6], [62, 6], [63, 12], [64, 12], [65, 6], [66, 6], [67, 24], [65, 12], [64, 12]);
+  const r = grade(t, ans);
+  assert.ok(r.pitchScore < 1 && r.rhythmScore < 1);
+  assert.equal(tally([r]).pitchScore, r.pitchScore);
+});
+
+test('쉼표 자리에 음표를 적으면 리듬이 깎인다(H2)', () => {
+  const t = mel([60, 12], [null, 12], [64, 12], [65, 12], [67, 12], [null, 12], [64, 24]);
+  const ans = mel([60, 12], [62, 12], [64, 12], [65, 12], [67, 12], [65, 12], [64, 24]);
+  const r = grade(t, ans);
+  assert.deepEqual(r.items.map((i) => i.verdict), ['ok', 'pitch', 'ok', 'ok', 'ok', 'pitch', 'ok']);
   assert.equal(r.pitchScore, 1);
+  assert.equal(r.rhythmScore, 5 / 7);
+});
+
+test('리듬만 채점: 남는 소리도 분모에 든다', () => {
+  const t = mel([71, 12], [null, 12], [71, 24]);
+  const r = grade(t, mel([71, 12], [71, 6], [71, 6], [71, 24]));
+  assert.ok(tally([r], true).rhythmScore < 1);
+  assert.equal(tally([grade(t, t)], true).rhythmScore, 1);
 });
 
 test('음높이 틀림, 리듬 틀림, 둘 다, 옥타브', () => {

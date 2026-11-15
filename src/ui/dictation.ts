@@ -1,5 +1,5 @@
 import { TPB, barTicks, timeSignature, type Note, type Problem } from '../engine/types.ts';
-import { durName, grade, missTags, type GradeItem, type GradeResult } from '../engine/grade.ts';
+import { durName, grade, tally, missTags, type GradeItem, type GradeResult } from '../engine/grade.ts';
 import { barProblems } from '../engine/score.ts';
 import { noteName, solfa, keyName } from '../engine/theory.ts';
 import { passed } from '../engine/progress.ts';
@@ -51,26 +51,8 @@ function noteIcon(value: number): SVGSVGElement {
 
 const meterText = (p: Problem) => timeSignature(p).join('/');
 
-/** 여러 성부의 채점을 음 수로 묶은 점수(한 성부면 그 성부 점수와 같다) */
-function combined(rs: GradeResult[]) {
-  let pn = 0, po = 0, rn = 0, ro = 0;
-  for (const r of rs) for (const i of r.items) {
-    if (!i.truth) continue;
-    rn++;
-    if (i.verdict === 'ok' || i.verdict === 'pitch') ro++;
-    if (i.truth.midi !== null) { pn++; if (i.verdict === 'ok' || i.verdict === 'rhythm') po++; }
-  }
-  return { pitchScore: pn ? po / pn : 1, rhythmScore: rn ? ro / rn : 1 };
-}
-
 /** 2성부를 함께 친다. 길이(초)를 돌려준다 */
 const playVoices = (vs: Note[][], tempo: number) => Math.max(...vs.map((v) => playNotes(v, tempo)));
-
-/** 리듬 받아쓰기 점수: 쉼표 자리에 음표(채점기의 '음높이 틀림')도 리듬 틀림으로 친다 */
-const rhythmOnlyScore = (r: GradeResult) => {
-  const truth = r.items.filter((i) => i.truth).length;
-  return truth ? r.items.filter((i) => i.verdict === 'ok').length / truth : 1;
-};
 
 export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBass: Note[] = []) {
   stopAll();
@@ -229,9 +211,9 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
 
   function finish(answers: Note[][], rs: GradeResult[]) {
     stopAll();
-    const sc = combined(rs);
+    const sc = tally(rs, rhythm);
     const pitchScore = rhythm ? 1 : sc.pitchScore;
-    const rhythmScore = rhythm ? rhythmOnlyScore(rs[0]) : sc.rhythmScore;
+    const rhythmScore = sc.rhythmScore;
     const miss = [...new Set(rs.flatMap((r) => missTags(r, p.fifths, rhythm, p.minor)))];
     record({
       at: new Date().toISOString(), problemId: p.id, answer: answers[0], ...(two && { answerBass: answers[1] }), pitchScore, rhythmScore,
@@ -372,9 +354,9 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
     return { mine, truth, errors };
   });
 
-  const sc = combined(rs);
+  const sc = tally(rs, rhythm);
   const pitchScore = rhythm ? 1 : sc.pitchScore;
-  const rhythmScore = rhythm ? rhythmOnlyScore(rs[0]) : sc.rhythmScore;
+  const rhythmScore = sc.rhythmScore;
   const perfect = pitchScore === 1 && rhythmScore === 1;
   const ok = passed({ pitchScore, rhythmScore });
   const errors = parts.flatMap((x) => x.errors);
