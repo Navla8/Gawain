@@ -153,15 +153,14 @@ export function harmonyItem(skill: string, seed: number, weak: Weights = {}): Ha
   // 진행: 첫 화음(으뜸화음)은 주고, 나머지를 로마 숫자로
   const minor = skill === 'h3b' && r() < 0.5;
   const grammar = minor ? 'h3bm' : skill;
-  const len = skill === 'h2b' ? 4 : 5;
-  const tonicChord = minor ? 'i' : 'I';
+    const tonicChord = minor ? 'i' : 'I';
   const { fifths, tonic } = pickKey(r, minor);
   let labels: string[] = [];
   for (let tries = 0; tries < 500; tries++) {
     labels = [tonicChord];
-    while (labels.length < len - 1) labels.push(weighted(NEXT[grammar][labels.at(-1)!], w, r));
-    // 마지막은 딸림화음 → 으뜸화음(정격 종지)
-    if (!['V', 'V7'].includes(labels.at(-1)!)) continue;
+    while (labels.length < 4) labels.push(weighted(NEXT[grammar][labels.at(-1)!], w, r));
+    // 마지막은 딸림화음 → 으뜸화음(정격 종지). h2b는 IV → I(변격)도 허용
+    if (!(skill === 'h2b' ? ['V', 'IV'] : ['V', 'V7']).includes(labels.at(-1)!)) continue;
     labels.push(tonicChord);
     if (FRESH[grammar] && !labels.some((l) => FRESH[grammar].includes(l))) continue;
     break;

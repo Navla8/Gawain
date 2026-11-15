@@ -69,13 +69,21 @@ test('진행: 첫 화음은 으뜸화음, 딸림화음 → 으뜸화음으로 �
       assert.ok(it.answers.every((a) => it.choices.includes(a)), `${it.id}: 버튼에 없는 답`);
       assert.equal(labels[0], it.minor ? 'i' : 'I');
       assert.equal(labels.at(-1), labels[0]);
-      assert.ok(['V', 'V7'].includes(labels.at(-2)!));
+      assert.ok((id === 'h2b' ? ['V', 'IV'] : ['V', 'V7']).includes(labels.at(-2)!));
       if (id === 'h3a') assert.ok(labels.some((l) => ['I6', 'I64', 'V6', 'V7'].includes(l)), `${it.id}: 자리바꿈·V7`);
       if (id === 'h3b' && !it.minor) assert.ok(labels.some((l) => ['ii', 'vi'].includes(l)), `${it.id}: 부3화음`);
       if (it.minor) minor++;
     }
     if (id === 'h3b') assert.ok(minor > SEEDS * 0.3 && minor < SEEDS * 0.7);
     else assert.equal(minor, 0);
+  }
+});
+
+test('진행 단원마다 정답이 여러 가지다(h2b가 늘 IV V I이던 결함)', () => {
+  for (const [id, min] of [['h2b', 4], ['h3a', 8], ['h3b', 8]] as const) {
+    const kinds = new Set<string>();
+    for (let seed = 1; seed <= SEEDS; seed++) kinds.add(harmonyItem(id, seed).answers.join(' '));
+    assert.ok(kinds.size >= min, `${id}: 정답 ${kinds.size}가지`);
   }
 });
 
