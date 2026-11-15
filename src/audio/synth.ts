@@ -123,8 +123,8 @@ export function playCadence(tonic: number, minor = false): number {
   return cadence(tonic, minor, c.currentTime + 0.05) - c.currentTime;
 }
 
-/** 조성감 세우기: (첫 재생이면 카덴츠) → 준비박 1마디 → 메트로놈과 함께 선율. 겹박자는 점4분음표마다 친다. 전체 길이(초)를 돌려준다 */
-export function playProblem(p: Problem, withCadence: boolean): number {
+/** 조성감 세우기: (첫 재생이면 카덴츠) → 준비박 1마디 → (melodyClick이면 메트로놈과 함께) 선율. 겹박자는 점4분음표마다 친다. 전체 길이(초)를 돌려준다 */
+export function playProblem(p: Problem, withCadence: boolean, melodyClick = true): number {
   const c = unlockAudio();
   stopAll();
   let t = c.currentTime + 0.05;
@@ -135,7 +135,7 @@ export function playProblem(p: Problem, withCadence: boolean): number {
   const lead = p.pickup ? p.beatsPerBar * beatTicks - p.pickup : 0;
   const count = p.beatsPerBar + lead / beatTicks;
   const melodyBeats = Math.ceil(p.notes.reduce((a, n) => a + n.dur, 0) / beatTicks);
-  for (let b = 0; b < count + melodyBeats; b++) click(t + b * beat, b % p.beatsPerBar === 0, b < count ? 0.3 : 0.12);
+  for (let b = 0; b < count + (melodyClick ? melodyBeats : 0); b++) click(t + b * beat, b % p.beatsPerBar === 0, b < count ? 0.3 : 0.12);
   t += count * beat;
   return playNotes(p.notes, p.tempo, t - c.currentTime);
 }

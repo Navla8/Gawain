@@ -164,6 +164,8 @@ h2.section { margin: 18px 0 -6px; }
 
 .backup { display: flex; justify-content: center; gap: 4px; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
 .backup button { color: var(--muted); font-size: 13px; padding: 8px 10px; }
+.backup.settings { flex-wrap: wrap; margin-top: 16px; }
+.backup.settings + .backup { border-top: 0; padding-top: 0; margin-top: 0; }
 .clock { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 .toast {
   position: fixed;

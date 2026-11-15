@@ -73,8 +73,17 @@ function home() {
       return card('문제집', `${SETS.map((s) => s.name).join('·')} ${ALL.length}문제 · ${solved}문제 풀어 봄`, setsScreen, solved / ALL.length);
     })(),
     card('피아노 룸', '들은 멜로디를 바로 쳐 봐요 · 채점·기록 없음', pianoRoom),
+    (() => {
+      const s = settings();
+      const toggle = (label: string, key: 'minorDo' | 'melodyClick' | 'keySound', on: string, off: string) =>
+        h('button', { onclick: () => { setSettings({ [key]: !s[key] }); home(); } }, `${label} · ${s[key] ? on : off}`);
+      return h('footer', { class: 'backup settings' },
+        toggle('단조 계이름', 'minorDo', '도 기반', '라 기반'),
+        toggle('선율 중 메트로놈', 'melodyClick', '켬', '끔'),
+        toggle('건반 소리', 'keySound', '켬', '끔'),
+      );
+    })(),
     h('footer', { class: 'backup' },
-      h('button', { onclick: () => { setSettings({ minorDo: !settings().minorDo }); home(); } }, `단조 계이름 · ${settings().minorDo ? '도 기반' : '라 기반'}`),
       h('button', { onclick: exportRecords }, '기록 내보내기'),
       h('button', { onclick: importRecords }, '기록 불러오기'),
     ),

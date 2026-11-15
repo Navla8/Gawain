@@ -1,6 +1,6 @@
 import { TPB, type Note, type SoundEvent } from './types.ts';
 import { toEvents } from './score.ts';
-import { solfa } from './theory.ts';
+import { solfa, spell } from './theory.ts';
 
 export type Verdict = 'ok' | 'pitch' | 'rhythm' | 'both' | 'missing' | 'extra';
 
@@ -63,7 +63,8 @@ export function grade(truthNotes: Note[], answerNotes: Note[]): GradeResult {
 }
 
 // ───────── 약점 표식 (기획 §M6.2) ─────────
-// 선율은 '도→라'처럼 그 음으로 가는 계이름 진행, 리듬은 '16분'·'4분쉼표'처럼 음 길이로 적는다.
+// 선율은 '도→라'처럼 그 음으로 가는 계이름 진행과 '↑6도'처럼 음정(악보 글자 자리로 센 도수, 같은 음은 없음),
+// 리듬은 '16분'·'4분쉼표'처럼 음 길이로 적는다(기획 §M6.2, §M7.3).
 // 문항에 든 표식(contentTags)과 틀린 표식(missTags)이 같은 말이라, 틀린 표식이 든 문항을 골라 더 자주 낼 수 있다.
 
 const DUR_NAMES: Record<number, string> = {
@@ -76,7 +77,11 @@ const durTag = (e: SoundEvent) => durName(e.dur) + (e.midi === null ? '쉼표' :
 function eventTags(e: SoundEvent, prev: SoundEvent | undefined, fifths: number, rhythmOnly: boolean, part: 'pitch' | 'rhythm' | 'both', minor: boolean) {
   const out: string[] = [];
   if (part !== 'pitch') out.push(durTag(e));
-  if (part !== 'rhythm' && !rhythmOnly && e.midi !== null && prev?.midi != null) out.push(`${solfa(prev.midi, fifths, { minor })}→${solfa(e.midi, fifths, { minor })}`);
+  if (part !== 'rhythm' && !rhythmOnly && e.midi !== null && prev?.midi != null) {
+    out.push(`${solfa(prev.midi, fifths, { minor })}→${solfa(e.midi, fifths, { minor })}`);
+    const d = spell(e.midi, fifths, minor).step - spell(prev.midi, fifths, minor).step;
+    if (d) out.push(`${d > 0 ? '↑' : '↓'}${Math.abs(d) + 1}도`);
+  }
   return out;
 }
 

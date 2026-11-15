@@ -6,7 +6,7 @@ import { passed } from '../engine/progress.ts';
 import { later, playCadence, playKey, playNotes, playProblem, stopAll } from '../audio/synth.ts';
 import { setCounting, touch } from '../activity.ts';
 import { renderStaff } from './staff.ts';
-import { keyRead, record } from '../store.ts';
+import { keyRead, record, settings } from '../store.ts';
 import { app, h, header, pct } from './dom.ts';
 import { pianoKeys } from './keyboard.ts';
 
@@ -28,6 +28,8 @@ export interface ItemCtx {
   plays?: number;
   /** 대련에 다시 나온 지난 오답(숙달 판정에서 뺀다) */
   retry?: boolean;
+  /** 실전 조건(기획 §M6.3, §M7.3): 선율 중 메트로놈과 건반 소리를 끈다 */
+  exam?: boolean;
 }
 
 const MAX_PLAYS = 5;
@@ -67,6 +69,10 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
   let base = 12, dotted = false, triplet = false;
   const maxPlays = ctx.plays ?? MAX_PLAYS;
   let plays = maxPlays;
+  const set = settings();
+  const melodyClick = set.melodyClick && !ctx.exam;
+  // 리듬 치기 버튼은 음높이가 없어 소리를 그대로 둔다
+  const keySound = rhythm || (set.keySound && !ctx.exam);
   const history: Note[][] = [];
 
   const dur = () => {
@@ -92,7 +98,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     if (plays <= 0) return;
     const withCadence = plays === maxPlays && !rhythm;
     plays--;
-    run(playProblem(p, withCadence));
+    run(playProblem(p, withCadence, melodyClick));
   }
 
   /** sec초 동안 재생 중 상태로 둔다 */
@@ -109,7 +115,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
   }
 
   function input(midi: number | null) {
-    if (midi !== null) playKey(midi);
+    if (midi !== null && keySound) playKey(midi);
     edit(() => {
       if (selected !== null) notes[selected].midi = midi;
       else {
@@ -132,7 +138,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
       onTap: (i) => {
         selected = selected === i ? null : i;
         cursor = i + 1;
-        if (selected !== null && notes[i].midi !== null) playKey(notes[i].midi!);
+        if (selected !== null && notes[i].midi !== null && keySound) playKey(notes[i].midi!);
         draw();
       },
     });
@@ -222,6 +228,9 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     h('p', { class: 'info' }, rhythm
       ? `${meterText(p)} · ${p.bars}마디 · 리듬만 적어요`
       : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디${p.pickup ? ' · 못갖춘마디(한 박)' : ''} · 첫 음 ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)}`),
+    ctx.exam || !melodyClick || !keySound
+      ? h('p', { class: 'info' }, [ctx.exam && `실전 조건 · 재생 ${maxPlays}회`, !melodyClick && '선율 중 메트로놈 없음', !keySound && '건반 소리 없음'].filter(Boolean).join(' · '))
+      : '',
     h('div', { class: 'listen' }, playBtn, scaleBtn),
     staffBox,
     status,
@@ -302,7 +311,7 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
   const perfect = pitchScore === 1 && rhythmScore === 1;
   const ok = passed({ pitchScore, rhythmScore });
   // 다시 풀기는 연습으로만 남긴다(답을 본 뒤라 단원 판정에 넣지 않음)
-  const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, retry: undefined, plays: undefined, onGraded: undefined };
+  const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, retry: undefined, plays: undefined, exam: undefined, onGraded: undefined };
   app.replaceChildren(
     header(p.title, ctx.step),
     h('div', { class: 'scores' + (perfect ? ' perfect' : '') },

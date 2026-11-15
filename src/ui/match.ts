@@ -94,7 +94,7 @@ function show(run: Run, slot: Slot, step: [number, number]) {
     placement: run.kind === 'placement',
     step,
     ...(slot.role === 'retry' && { retry: true }),
-    ...(isExam(progressNow(), slot) && { plays: EXAM_PLAYS[slot.track] }),
+    ...(isExam(progressNow(), slot) && { plays: EXAM_PLAYS[slot.track], exam: true }),
     onGraded: (ok) => {
       run.log.push({ slot, skill: id, ok });
       // 배치고사는 마지막 문항까지 채점돼야 배치 완료다. 방금 남긴 시도에 끝 표시를 단다

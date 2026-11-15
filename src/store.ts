@@ -32,14 +32,19 @@ export interface Data {
 export interface Settings {
   /** 단조 계이름을 도 기반(같은으뜸음조)으로 읽는다. 기본은 라 기반(기획 §M7.1) */
   minorDo: boolean;
+  /** 선율이 나오는 동안에도 메트로놈을 친다. 끄면 준비박만(기획 §M7.3) */
+  melodyClick: boolean;
+  /** 받아쓰기 건반을 누르면 소리가 난다. 끄면 내청으로만 적는다(기획 §M7.3) */
+  keySound: boolean;
 }
 const SETTINGS = 'gawain.settings';
+const DEFAULTS: Settings = { minorDo: false, melodyClick: true, keySound: true };
 
 export function settings(): Settings {
   try {
-    return { minorDo: false, ...JSON.parse(localStorage.getItem(SETTINGS) ?? '{}') };
+    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETTINGS) ?? '{}') };
   } catch {
-    return { minorDo: false };
+    return { ...DEFAULTS };
   }
 }
 
