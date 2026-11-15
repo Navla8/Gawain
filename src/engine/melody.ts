@@ -267,6 +267,17 @@ function bassVoice(chords: string[], beats: number, tonic: number, r: () => numb
   return out.every((n, i) => !i || Math.abs(n.midi! - out[i - 1].midi!) <= 7) ? out : undefined;
 }
 
+/** 2성부: 모든 시점에 위 성부가 아래 성부보다 단3도(3반음) 이상 높다(교차·같은 음 방지, 감사 M5) */
+function voicesApart(top: Note[], bass: Note[]): boolean {
+  let t = 0;
+  const spans = top.map((n) => { const s = t; t += n.dur; return { s, e: t, m: n.midi }; });
+  t = 0;
+  return bass.every((b) => {
+    const s = t; t += b.dur;
+    return spans.every((x) => x.m === null || x.s >= t || x.e <= s || x.m - b.midi! >= 3);
+  });
+}
+
 /** 반음계 보조음·경과음(기획 §M7.5): 여린박 음을 다음 음의 반음 아래(올림, 위로 해결)나 반음 위(내림, 아래로 해결)로 바꾼다.
  *  다음 음과 온음 사이일 때만, 마디에 하나까지, 첫 음과 마지막 두 음은 두고, 앞 음에서 증4도·6도 넘게 뛰지 않게. 둘 이상 바꾸면 true */
 function chromaticize(notes: Note[], slots: Slot[], tonic: number, beats: number, r: () => number): boolean {
@@ -348,7 +359,7 @@ function buildMelody(id: string, seed: number, name: string): Problem {
       if (Math.abs(ps[j].midi! - ps[j - 1].midi!) > 5) continue;
     }
     const bass = u.bassLine ? bassVoice(chords, beats, tonic, r) : undefined;
-    if (u.bassLine && !bass) continue;
+    if (u.bassLine && (!bass || !voicesApart(notes, bass))) continue;
     best = { notes, tonic, bass };
   }
   if (!best) throw new Error(`선율 생성 실패: ${id} ${seed}`);

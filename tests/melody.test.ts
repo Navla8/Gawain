@@ -213,3 +213,16 @@ test('드물게 만들지 못하는 시드는 다음 시드로 넘어가고 id�
     assert.deepEqual(melodyItem(id, seed), p);
   }
 });
+
+test('2성부(g4c): 모든 시점에 위 성부가 아래 성부보다 단3도 이상 높다(M5)', () => {
+  for (let seed = 1; seed <= 3000; seed++) {
+    const p = melodyItem('g4c', seed);
+    let t = 0;
+    const top: [number, number, number | null][] = p.notes.map((n) => { const s = t; t += n.dur; return [s, t, n.midi]; });
+    t = 0;
+    for (const b of p.bass!) {
+      const s = t; t += b.dur;
+      for (const [ts, te, m] of top) if (m !== null && ts < t && te > s) assert.ok(m - b.midi! >= 3, `${p.id}: ${m} vs ${b.midi}`);
+    }
+  }
+});
