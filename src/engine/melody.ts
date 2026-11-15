@@ -289,8 +289,15 @@ function chromaticize(notes: Note[], slots: Slot[], tonic: number, beats: number
   return n >= 2;
 }
 
-/** 선율 받아쓰기 한 문제. 같은 시드는 같은 문제(오답 다시 풀기는 id의 시드로 다시 만든다) */
+/** 선율 받아쓰기 한 문제. 같은 시드는 같은 문제(오답 다시 풀기는 id의 시드로 다시 만든다).
+ *  드물게(8마디 4/4 약 0.02%) 만들지 못하는 시드는 다음 시드로 넘어가며, id에는 실제로 쓴 시드가 든다 */
 export function melodyItem(id: string, seed: number, name = id): Problem {
+  for (let k = 0; ; k++) {
+    try { return buildMelody(id, seed + k, name); } catch (e) { if (k >= 50) throw e; }
+  }
+}
+
+function buildMelody(id: string, seed: number, name: string): Problem {
   const u0 = UNITS[id];
   const r = rng(seed);
   const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];

@@ -204,3 +204,12 @@ test('t5 곡 채보: 공개 곡 선율, 마디를 꽉 채우고 조를 옮겨 �
     assert.deepEqual(tuneItem(seed), p);
   }
 });
+
+test('드물게 만들지 못하는 시드는 다음 시드로 넘어가고 id에 실제 시드가 든다(M1)', () => {
+  for (const id of ['g3f', 'g5b']) {
+    const p = melodyItem(id, 23202683);
+    const seed = Number(p.id.split('-')[2]);
+    assert.ok(seed > 23202683, `${id}: 시드가 그대로`);
+    assert.deepEqual(melodyItem(id, seed), p);
+  }
+});
