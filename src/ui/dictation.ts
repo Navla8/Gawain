@@ -1,5 +1,5 @@
 import { TPB, barTicks, timeSignature, type Note, type Problem } from '../engine/types.ts';
-import { grade, type GradeItem, type GradeResult } from '../engine/grade.ts';
+import { durName, grade, missTags, type GradeItem, type GradeResult } from '../engine/grade.ts';
 import { barProblems } from '../engine/score.ts';
 import { noteName, solfa, keyName } from '../engine/theory.ts';
 import { passed } from '../engine/progress.ts';
@@ -24,6 +24,10 @@ export interface ItemCtx {
   onGraded?: (ok: boolean) => void;
   /** 리듬만 받아쓰기: 건반 대신 치기 버튼, 리듬만 채점 */
   rhythm?: boolean;
+  /** 재생 횟수(없으면 기본). 숙달한 단원의 점검은 실전 조건으로 줄인다(기획 §M6.3) */
+  plays?: number;
+  /** 대련에 다시 나온 지난 오답(숙달 판정에서 뺀다) */
+  retry?: boolean;
 }
 
 const MAX_PLAYS = 5;
@@ -61,7 +65,8 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
   let cursor = notes.length;
   let selected: number | null = null;
   let base = 12, dotted = false, triplet = false;
-  let plays = MAX_PLAYS;
+  const maxPlays = ctx.plays ?? MAX_PLAYS;
+  let plays = maxPlays;
   const history: Note[][] = [];
 
   const dur = () => {
@@ -85,7 +90,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
   /** 준비박 → 메트로놈과 선율. 첫 재생만 음계를 먼저 친다(리듬은 음계 없음) */
   function listen() {
     if (plays <= 0) return;
-    const withScale = plays === MAX_PLAYS && !rhythm;
+    const withScale = plays === maxPlays && !rhythm;
     plays--;
     run(playProblem(p, withScale));
   }
@@ -177,8 +182,8 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     const rhythmScore = rhythm ? rhythmOnlyScore(r) : r.rhythmScore;
     record({
       at: new Date().toISOString(), problemId: p.id, answer, pitchScore, rhythmScore,
-      plays: MAX_PLAYS - plays, seconds: Math.round((Date.now() - started) / 1000),
-      ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }),
+      plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
+      ...(ctx.skill && { skill: ctx.skill, miss: missTags(r, p.fifths, rhythm) }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }),
     });
     ctx.onGraded?.(passed({ pitchScore, rhythmScore }));
     result(p, answer, r, ctx);
@@ -232,10 +237,6 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
 
 // ───────── 결과 ─────────
 
-const DUR_NAMES: Record<number, string> = {
-  48: '온음표', 36: '점2분', 24: '2분', 18: '점4분', 12: '4분', 9: '점8분', 6: '8분', 3: '16분', 16: '셋잇단 2분', 8: '셋잇단 4분', 4: '셋잇단 8분', 2: '셋잇단 16분',
-};
-const durName = (t: number) => DUR_NAMES[t] ?? `${+(t / TPB).toFixed(2)}박`;
 const COLORS: Record<string, string> = { ok: 'var(--accent)', pitch: 'var(--signal-danger)', rhythm: 'var(--signal-caution)', both: 'var(--signal-danger)', extra: 'var(--muted)', missing: 'var(--signal-danger)' };
 const MARKS: Record<string, string> = { ok: '✓', pitch: '음', rhythm: '박', both: '음박', extra: '+', missing: '빠짐' };
 
@@ -297,7 +298,7 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
   const perfect = pitchScore === 1 && rhythmScore === 1;
   const ok = passed({ pitchScore, rhythmScore });
   // 다시 풀기는 연습으로만 남긴다(답을 본 뒤라 단원 판정에 넣지 않음)
-  const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, onGraded: undefined };
+  const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, retry: undefined, plays: undefined, onGraded: undefined };
   app.replaceChildren(
     header(p.title, ctx.step),
     h('div', { class: 'scores' + (perfect ? ' perfect' : '') },

@@ -16,7 +16,8 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
   setCounting(true);
   const started = Date.now();
   const answer: string[] = [];
-  let plays = MAX_PLAYS;
+  const maxPlays = ctx.plays ?? MAX_PLAYS;
+  let plays = maxPlays;
   let playing = false;
   let done = false;
 
@@ -28,7 +29,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
 
   function listen() {
     if (plays <= 0) return;
-    const withScale = plays === MAX_PLAYS;
+    const withScale = plays === maxPlays;
     plays--;
     run(playDegrees(it.midis, it.tonic, it.minor, withScale));
   }
@@ -59,7 +60,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
     const score = giveUp ? 0 : right / it.names.length;
     record({
       at: new Date().toISOString(), problemId: it.id, answer: [...answer], pitchScore: score, rhythmScore: 1,
-      plays: MAX_PLAYS - plays, seconds: Math.round((Date.now() - started) / 1000),
+      plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
       miss: it.names.filter((n, i) => answer[i] !== n),
       ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }),
     });

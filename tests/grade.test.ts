@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { grade } from '../src/engine/grade.ts';
+import { grade, contentTags, missTags } from '../src/engine/grade.ts';
 import type { Note } from '../src/engine/types.ts';
 
 const mel = (...xs: [number | null, number][]): Note[] => xs.map(([midi, dur]) => ({ midi, dur }));
@@ -43,4 +43,18 @@ test('점수는 음높이와 리듬을 따로 낸다', () => {
   const r = grade(truth, ans);
   assert.equal(r.rhythmScore, 1);
   assert.equal(Math.round(r.pitchScore * 6), 5);
+});
+
+test('약점 표식: 선율은 틀린 음으로 가는 계이름 진행, 리듬은 틀린 음 길이', () => {
+  const t = mel([60, 12], [69, 12], [null, 12], [67, 6], [67, 6], [60, 48]);
+  assert.deepEqual(contentTags(t, 0).sort(), ['4분', '4분쉼표', '8분', '도→라', '라→솔', '솔→도', '솔→솔', '온음표'].sort());
+  assert.deepEqual(contentTags(t, 0, true).sort(), ['4분', '4분쉼표', '8분', '온음표'].sort());
+  // 라를 솔로(음높이), 8분 둘을 4분 하나로(리듬·빠짐)
+  const ans = mel([60, 12], [67, 12], [null, 12], [67, 12], [60, 48]);
+  assert.deepEqual(missTags(grade(t, ans), 0).sort(), ['8분', '도→라', '솔→솔'].sort());
+  // 리듬만: 쉼표 자리에 음표를 적은 것도 쉼표 틀림
+  const r = mel([71, 12], [null, 12], [71, 24]);
+  assert.deepEqual(missTags(grade(r, mel([71, 12], [71, 12], [71, 24])), 0, true), ['4분쉼표']);
+  // 단조(조표 기준 라 으뜸)
+  assert.deepEqual(contentTags(mel([69, 12], [68, 12], [69, 24]), 0).filter((x) => x.includes('→')), ['라→솔♯', '솔♯→라']);
 });

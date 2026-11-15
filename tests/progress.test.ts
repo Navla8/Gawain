@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeProgress, classify, frontier, FAST_PASS, type SkillAttempt } from '../src/engine/progress.ts';
+import { computeProgress, classify, frontier, bestOf, weakness, FAST_PASS, FIRM, type SkillAttempt } from '../src/engine/progress.ts';
 import { SKILLS } from '../src/engine/curriculum.ts';
 
 let clock = 0;
@@ -66,6 +66,43 @@ test('어려운 단원을 맞히면 점검일이 된 아래 단원도 확인된�
   const p = computeProgress(a);
   assert.equal(p.skills.d0a.reviews, 1);
   assert.equal(p.skills.d0b.reviews, 1);
+});
+
+test('어려운 단원을 맞혀도 그 단원에 들어 있지 않은 아래 단원은 확인되지 않는다', () => {
+  // 배치고사로 리듬·받아쓰기 사다리를 모두 숙달한 뒤, 3일 뒤 맨 위 단원만 맞힘
+  const a = [att(0, 'r3c', 1, { placement: true }), att(0, 'g3f', 1, { placement: true }), att(3, 'r3c', 1), att(3, 'g3f', 1)];
+  const p = computeProgress(a);
+  assert.equal(p.skills.r3c.reviews, 1);
+  for (const id of ['r3a', 'r3b', 'r2b', 'g3a', 'g3b']) {
+    assert.equal(p.skills[id].reviews, 0, id);
+    assert.equal(p.skills[id].due, '2026-11-04', id);
+  }
+  for (const id of ['g3e', 'g3c', 'g2d', 'g1a']) assert.equal(p.skills[id].reviews, 1, id);
+});
+
+test('점검을 아슬아슬하게(90% 미만) 넘기면 간격이 늘지 않고 같은 간격으로 다시 점검', () => {
+  const a = [att(0, 'g1a', 1), att(0, 'g1a', 1), att(3, 'g1a', 0.85)];
+  assert.equal(FIRM, 0.9);
+  assert.equal(computeProgress(a).skills.g1a.reviews, 0);
+  assert.equal(computeProgress(a).skills.g1a.due, '2026-11-07');
+  a.push(att(6, 'g1a', 0.95));
+  assert.equal(computeProgress(a).skills.g1a.reviews, 1);
+  assert.equal(computeProgress(a).skills.g1a.due, '2026-11-14');
+});
+
+test('대련의 오답 다시 풀기는 숙달 판정에 넣지 않고, 약점 집계에는 넣는다', () => {
+  const a = [0, 1, 2].map(() => att(0, 'g1a', 1, { retry: true, miss: ['도→솔'] }));
+  const p = computeProgress(a);
+  assert.equal(p.skills.g1a.mastered, false);
+  assert.equal(p.skills.g1a.tries, 0);
+  assert.deepEqual(weakness(a, 'g1a'), { '도→솔': 3 });
+});
+
+test('약점 가중 고르기: 같은 시드면 같은 결과, 약점이 든 후보를 고른다', () => {
+  const make = (s: number) => ({ s, tags: s % 3 === 0 ? ['x'] : ['y'] });
+  assert.equal(bestOf(make, (x) => x.tags, 1, {}).s, 1);
+  assert.equal(bestOf(make, (x) => x.tags, 1, { x: 2 }).s, 3);
+  assert.deepEqual(bestOf(make, (x) => x.tags, 1, { x: 2 }), bestOf(make, (x) => x.tags, 1, { x: 2 }));
 });
 
 test('배치고사 통과는 그 단원과 아래 단원을 숙달로 본다', () => {

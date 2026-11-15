@@ -4,14 +4,14 @@ import { GOAL_SECONDS, addDays, dayKey, dayStatus, reviewIds, streak } from './e
 import { setCounting, startActivityClock } from './activity.ts';
 import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from './engine/curriculum.ts';
 import { computeProgress, isDue } from './engine/progress.ts';
-import { planMatch, EST } from './engine/session.ts';
+import { EST } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
 import { load, merge } from './store.ts';
 import { app, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
 import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
-import { startMatch, startPlacement } from './ui/match.ts';
+import { matchPlan, startMatch, startPlacement } from './ui/match.ts';
 import { skillsScreen } from './ui/skills.ts';
 
 // ───────── 홈 ─────────
@@ -31,12 +31,13 @@ function home() {
   const due = SKILLS.filter((s) => isDue(p, s.id, today)).length;
   // 대련: 배치고사를 끝까지 본 적이 없으면 배치고사부터(중간에 그만뒀거나, 받아쓰기 사다리가 바뀌기 전에 봤으면 다시)
   const fresh = !p.placed;
-  const plan = planMatch(p, today);
+  const plan = matchPlan().slots;
   const mins = Math.round(plan.reduce((a, s) => a + EST[s.track], 0) / 60);
   const reviews = plan.filter((s) => s.role === 'review').length;
+  const retries = plan.filter((s) => s.role === 'retry').length;
   const matchSub = fresh
     ? '배치고사로 내 레벨부터 찾아요 · 약 10분'
-    : `약 ${mins}분 · ${plan.length}문항` + (reviews ? ` · 망각 점검 ${reviews}` : '') + (plan.some((s) => s.role === 'check') ? ' · 실력 확인' : '');
+    : `약 ${mins}분 · ${plan.length}문항` + (reviews ? ` · 망각 점검 ${reviews}` : '') + (retries ? ` · 지난 오답 ${retries}` : '') + (plan.some((s) => s.role === 'check') ? ' · 실력 확인' : '');
 
   app.replaceChildren(
     h('header', { class: 'home-head' },

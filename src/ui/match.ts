@@ -1,6 +1,7 @@
 import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill, trackLevelText } from '../engine/curriculum.ts';
-import { computeProgress, weakness, type Progress } from '../engine/progress.ts';
-import { MAX_TOTAL, frontier, learnUnit, nextPlacement, placementLeft, planMatch, stepDown, type Slot } from '../engine/session.ts';
+import { bestOf, computeProgress, weakness, type Progress } from '../engine/progress.ts';
+import { MAX_TOTAL, frontier, isExam, learnUnit, nextPlacement, placementLeft, planMatch, retryIds, stepDown, type Slot } from '../engine/session.ts';
+import { contentTags } from '../engine/grade.ts';
 import { degreeItem, rhythmItem } from '../engine/drills.ts';
 import { melodyItem } from '../engine/melody.ts';
 import { dayKey } from '../engine/habit.ts';
@@ -27,10 +28,20 @@ const seed = () => Math.floor(Math.random() * 1e9);
 const progressNow = () => computeProgress(load().attempts);
 export const levelName = (l: number) => LEVELS[Math.min(l, LEVELS.length - 1)].name;
 
+/** 대련 한 판 구성(홈의 예상 시간 표시도 이것으로) */
+export function matchPlan() {
+  const attempts = load().attempts;
+  const p = computeProgress(attempts);
+  const today = dayKey(new Date());
+  return { p, slots: planMatch(p, today, retryIds(attempts, p, today)) };
+}
+
+/** 실전 조건의 재생 횟수(기획 §M6.3): 받아쓰기·리듬 5 → 3, 계이름 3 → 2 */
+const EXAM_PLAYS = { degree: 2, rhythm: 3, dictation: 3 };
+
 /** 홈의 대련 버튼 */
 export function startMatch() {
-  const before = progressNow();
-  const slots = planMatch(before, dayKey(new Date()));
+  const { p: before, slots } = matchPlan();
   next({ kind: 'match', slots, i: 0, before, log: [] });
 }
 
@@ -82,6 +93,8 @@ function show(run: Run, slot: Slot, step: [number, number]) {
     skill: id,
     placement: run.kind === 'placement',
     step,
+    ...(slot.role === 'retry' && { retry: true }),
+    ...(isExam(progressNow(), slot) && { plays: EXAM_PLAYS[slot.track] }),
     onGraded: (ok) => {
       run.log.push({ slot, skill: id, ok });
       // 배치고사는 마지막 문항까지 채점돼야 배치 완료다. 방금 남긴 시도에 끝 표시를 단다
@@ -96,14 +109,18 @@ function show(run: Run, slot: Slot, step: [number, number]) {
     },
     next: () => { run.i++; next(run); },
   };
-  const attempts = load().attempts;
+  const weak = weakness(load().attempts, id);
   const s = skill(id)!;
-  if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weakness(attempts, id)), ctx);
-  else if (s.track === 'rhythm') solve(rhythmItem(id, seed()), { ...ctx, rhythm: true });
-  else solve(melodyItem(id, seed(), s.name), ctx);
+  // 지난 오답은 문제 id의 시드로 같은 문제를 다시 만든다. 새 문항은 약점 표식이 든 것을 골라 낸다(기획 §M6.2)
+  const fixed = slot.problem ? Number(slot.problem.split('-')[2]) : undefined;
+  const rhythmAt = (x: number) => rhythmItem(id, x);
+  const melodyAt = (x: number) => melodyItem(id, x, s.name);
+  if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weak), ctx);
+  else if (s.track === 'rhythm') solve(fixed !== undefined ? rhythmAt(fixed) : bestOf(rhythmAt, (it) => contentTags(it.notes, it.fifths, true), seed(), weak), { ...ctx, rhythm: true });
+  else solve(fixed !== undefined ? melodyAt(fixed) : bestOf(melodyAt, (it) => contentTags(it.notes, it.fifths), seed(), weak), ctx);
 }
 
-const ROLE: Record<string, string> = { learn: '연습', review: '점검', check: '확인', placement: '배치' };
+const ROLE: Record<string, string> = { learn: '연습', review: '점검', check: '확인', placement: '배치', retry: '오답' };
 
 function summary(run: Run) {
   stopAll();

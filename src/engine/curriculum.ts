@@ -10,6 +10,8 @@ export interface Skill {
   name: string;
   /** 선수 단원: 이 단원이 쓰는 도약·리듬을 먼저 익히는 다른 유형의 단원(기획 §M5.1-2) */
   prereq?: string[];
+  /** 이 단원 문항에 늘 들어 있는 같은 유형의 아래 단원. 이 단원을 맞히면 그 단원도 점검한 것으로 본다(기획 §M6.1) */
+  covers?: string[];
 }
 
 export const TRACKS: { id: Track; name: string; short: string }[] = [
@@ -35,8 +37,8 @@ export const MAX_LEVEL = 3;
 
 export const SKILLS: Skill[] = [
   { id: 'd0a', track: 'degree', level: 0, name: '도·레·미' },
-  { id: 'd0b', track: 'degree', level: 0, name: '도~솔' },
-  { id: 'd1a', track: 'degree', level: 1, name: '장음계 순차진행' },
+  { id: 'd0b', track: 'degree', level: 0, name: '도~솔', covers: ['d0a'] },
+  { id: 'd1a', track: 'degree', level: 1, name: '장음계 순차진행', covers: ['d0b'] },
   { id: 'd1b', track: 'degree', level: 1, name: '으뜸화음 도약 (도·미·솔)' },
   { id: 'd2a', track: 'degree', level: 2, name: '경향음 (파→미, 티→도)' },
   { id: 'd2b', track: 'degree', level: 2, name: '딸림화음 도약 (솔·티·레)' },
@@ -46,29 +48,40 @@ export const SKILLS: Skill[] = [
   { id: 'd3c', track: 'degree', level: 3, name: 'ii·vi·V7 도약 (레·라, 미·라, 솔·파)' },
 
   { id: 'r1', track: 'rhythm', level: 1, name: '4분·2분·온음표' },
-  { id: 'r2a', track: 'rhythm', level: 2, name: '8분음표와 4분쉼표' },
-  { id: 'r2b', track: 'rhythm', level: 2, name: '점4분음표 + 8분음표' },
-  { id: 'r3a', track: 'rhythm', level: 3, name: '16분음표' },
-  { id: 'r3b', track: 'rhythm', level: 3, name: '붓점·당김음' },
+  { id: 'r2a', track: 'rhythm', level: 2, name: '8분음표와 4분쉼표', covers: ['r1'] },
+  { id: 'r2b', track: 'rhythm', level: 2, name: '점4분음표 + 8분음표', covers: ['r2a'] },
+  { id: 'r3a', track: 'rhythm', level: 3, name: '16분음표', covers: ['r2b'] },
+  { id: 'r3b', track: 'rhythm', level: 3, name: '붓점·당김음', covers: ['r3a'] },
   { id: 'r3c', track: 'rhythm', level: 3, name: '6/8 겹박자' },
 
+  // 6/8(r3c·g3a)·단조(g3b)·화성 기능별 계이름 단원은 위 단원에 늘 들어 있지 않아 covers가 없다. 따로 점검한다
   // 선율 받아쓰기: 대학 교재 순서(화성 기능), 한 단원에 새 요소 하나 (기획 §M5.2). 생성기는 engine/melody.ts
   { id: 'g1a', track: 'dictation', level: 1, name: '도~솔 순차 (2마디)', prereq: ['d0b', 'r1'] },
-  { id: 'g1b', track: 'dictation', level: 1, name: '장음계 순차', prereq: ['d1a'] },
-  { id: 'g1c', track: 'dictation', level: 1, name: '으뜸화음 도약', prereq: ['d1b'] },
-  { id: 'g2a', track: 'dictation', level: 2, name: '8분음표', prereq: ['r2a'] },
-  { id: 'g2b', track: 'dictation', level: 2, name: '딸림화음 도약', prereq: ['d2b'] },
-  { id: 'g2c', track: 'dictation', level: 2, name: '버금딸림화음 도약', prereq: ['d2c'] },
-  { id: 'g2d', track: 'dictation', level: 2, name: '점4분음표', prereq: ['r2b'] },
+  { id: 'g1b', track: 'dictation', level: 1, name: '장음계 순차', prereq: ['d1a'], covers: ['g1a'] },
+  { id: 'g1c', track: 'dictation', level: 1, name: '으뜸화음 도약', prereq: ['d1b'], covers: ['g1b'] },
+  { id: 'g2a', track: 'dictation', level: 2, name: '8분음표', prereq: ['r2a'], covers: ['g1c'] },
+  { id: 'g2b', track: 'dictation', level: 2, name: '딸림화음 도약', prereq: ['d2b'], covers: ['g2a'] },
+  { id: 'g2c', track: 'dictation', level: 2, name: '버금딸림화음 도약', prereq: ['d2c'], covers: ['g2b'] },
+  { id: 'g2d', track: 'dictation', level: 2, name: '점4분음표', prereq: ['r2b'], covers: ['g2c'] },
   { id: 'g3a', track: 'dictation', level: 3, name: '6/8 겹박자', prereq: ['r3c'] },
   { id: 'g3b', track: 'dictation', level: 3, name: '단조', prereq: ['d3a', 'd3b'] },
-  { id: 'g3c', track: 'dictation', level: 3, name: 'ii·vi·V7 도약', prereq: ['d3c'] },
-  { id: 'g3d', track: 'dictation', level: 3, name: '16분음표', prereq: ['r3a'] },
-  { id: 'g3e', track: 'dictation', level: 3, name: '붓점·당김음', prereq: ['r3b'] },
-  { id: 'g3f', track: 'dictation', level: 3, name: '8마디' },
+  { id: 'g3c', track: 'dictation', level: 3, name: 'ii·vi·V7 도약', prereq: ['d3c'], covers: ['g2d'] },
+  { id: 'g3d', track: 'dictation', level: 3, name: '16분음표', prereq: ['r3a'], covers: ['g3c'] },
+  { id: 'g3e', track: 'dictation', level: 3, name: '붓점·당김음', prereq: ['r3b'], covers: ['g3d'] },
+  { id: 'g3f', track: 'dictation', level: 3, name: '8마디', covers: ['g3e'] },
 ];
 
 export const skill = (id: string) => SKILLS.find((s) => s.id === id);
 
 /** 한 유형의 단원 사다리(쉬운 것부터) */
 export const ladder = (track: Track) => SKILLS.filter((s) => s.track === track);
+
+/** 이 단원 문항에 들어 있는 아래 단원 전부(covers를 따라간다, 가까운 것부터) */
+export function within(id: string): string[] {
+  const out: string[] = [];
+  for (let q = [...(skill(id)?.covers ?? [])]; q.length;) {
+    const x = q.shift()!;
+    if (!out.includes(x)) { out.push(x); q.push(...(skill(x)?.covers ?? [])); }
+  }
+  return out;
+}

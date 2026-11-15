@@ -1,5 +1,5 @@
 import { addDays, dayKey } from './habit.ts';
-import { MAX_LEVEL, TRACKS, ladder, skill, type Track } from './curriculum.ts';
+import { MAX_LEVEL, TRACKS, ladder, skill, within, type Track } from './curriculum.ts';
 
 // 숙달·망각 점검(간격 반복)·레벨 (기획 M3). 저장하는 것은 시도 기록뿐이고, 단원 상태는 기록을 처음부터 다시 돌려 계산한다.
 // 그래서 기록 파일을 합쳐도 상태가 어긋나지 않는다.
@@ -15,6 +15,8 @@ export const INTERVALS = [3, 7, 14];
 /** 빠른 통과: 이 점수 이상을 연속 FAST_STREAK번 받으면 바로 숙달(기획 M4.2) */
 export const FAST_PASS = 0.95;
 export const FAST_STREAK = 2;
+/** 점검을 이 점수 이상으로 넘겨야 다음 간격으로 늘어난다. 아래면 같은 간격으로 다시 점검(기획 §M6.3) */
+export const FIRM = 0.9;
 /** 약함: 숙달 전이면서 점검에서 잊었거나, 최근 WEAK_MIN번 이상 시도의 통과율이 WEAK_RATE 미만(기획 M4.3) */
 export const WEAK_MIN = 4;
 export const WEAK_RATE = 0.5;
@@ -27,8 +29,10 @@ export interface SkillAttempt {
   placementEnd?: boolean;
   pitchScore: number;
   rhythmScore: number;
-  /** 틀린 요소(계이름 듣기는 틀린 계이름) */
+  /** 틀린 요소: 계이름 듣기는 틀린 계이름, 받아쓰기는 grade.ts missTags()의 표식 */
   miss?: string[];
+  /** 대련에 다시 나온 지난 오답. 숙달 판정에 넣지 않고 약점 집계에만 쓴다(기획 §M6.4) */
+  retry?: boolean;
 }
 
 export interface SkillState {
@@ -74,8 +78,8 @@ function master(st: SkillState, day: string) {
   Object.assign(st, { mastered: true, streak: 0, fast: 0, reviews: 0, due: addDays(day, INTERVALS[0]), masteredAt: day });
 }
 
-function reviewed(st: SkillState, day: string) {
-  st.reviews = Math.min(INTERVALS.length - 1, st.reviews + 1);
+function reviewed(st: SkillState, day: string, score: number) {
+  if (score >= FIRM) st.reviews = Math.min(INTERVALS.length - 1, st.reviews + 1);
   st.due = addDays(day, INTERVALS[st.reviews]);
 }
 
@@ -95,12 +99,11 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
   const ok = passed(a);
   st.tries++;
   st.recent = [...st.recent, ok ? 1 : 0].slice(-6);
-  const lower = ladder(s.track).slice(0, ladder(s.track).indexOf(s));
 
   if (a.placement) {
     // 배치고사 통과는 그 단원과 아래 단원을 모두 숙달로 본다. 3일 뒤 첫 점검이 진짜 확인이다.
     // 틀리면 그 단원과 위 단원을 모두 숙달 전으로 되돌린다(배치고사를 다시 보면 사다리를 처음부터 다시 매김)
-    if (ok) for (const x of [...lower, s]) { if (!skills[x.id].mastered) master(skills[x.id], day); }
+    if (ok) for (const x of ladder(s.track).slice(0, ladder(s.track).indexOf(s) + 1)) { if (!skills[x.id].mastered) master(skills[x.id], day); }
     else for (const x of ladder(s.track).slice(ladder(s.track).indexOf(s))) unmaster(skills[x.id]);
     return;
   }
@@ -110,7 +113,7 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
     return;
   }
   if (st.mastered) {
-    if (st.due && day >= st.due) reviewed(st, day);
+    if (st.due && day >= st.due) reviewed(st, day, attemptScore(a));
   } else {
     st.fast = attemptScore(a) >= FAST_PASS ? st.fast + 1 : 0;
     const quick = st.fast >= FAST_STREAK;
@@ -121,10 +124,10 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
       st.easy = easy;
     }
   }
-  // 어려운 단원을 맞히면 점검일이 된 아래 단원도 확인된 것으로 본다
-  for (const x of lower) {
-    const xs = skills[x.id];
-    if (xs.mastered && xs.due && day >= xs.due) reviewed(xs, day);
+  // 어려운 단원을 맞히면 그 문항에 들어 있는 아래 단원(covers)도 점검일이 됐으면 확인된 것으로 본다
+  for (const x of within(s.id)) {
+    const xs = skills[x];
+    if (xs.mastered && xs.due && day >= xs.due) reviewed(xs, day, attemptScore(a));
   }
 }
 
@@ -141,7 +144,7 @@ export function computeProgress(attempts: SkillAttempt[]): Progress {
   const history: Progress['history'] = [];
   let level = levels(skills).level;
   let placed = false;
-  const list = attempts.filter((a) => a.skill && skill(a.skill)).sort((x, y) => x.at.localeCompare(y.at));
+  const list = attempts.filter((a) => a.skill && skill(a.skill) && !a.retry).sort((x, y) => x.at.localeCompare(y.at));
   for (const a of list) {
     apply(skills, a);
     // 배치고사는 끝까지 봐야 본 것. 끝 표시가 없는 예전 배치고사는 받아쓰기 사다리가 바뀌어(기획 §M5) 다시 본다
@@ -182,4 +185,17 @@ export function weakness(attempts: SkillAttempt[], id: string): Record<string, n
   const out: Record<string, number> = {};
   for (const a of attempts.filter((x) => x.skill === id).slice(-20)) for (const m of a.miss ?? []) out[m] = (out[m] ?? 0) + 1;
   return out;
+}
+
+/** 시드 seed부터 n개를 만들어 약점 표식이 가장 많이 든 것을 고른다. 약점이 없으면 seed 그대로.
+ *  생성기에 가중치를 넣지 않으므로 문항 id의 시드로 같은 문항을 다시 만들 수 있다(오답 다시 풀기) */
+export function bestOf<T>(make: (seed: number) => T, tags: (x: T) => string[], seed: number, weak: Record<string, number>, n = 6): T {
+  if (!Object.keys(weak).length) return make(seed);
+  let best = make(seed), top = -1;
+  for (let i = 0; i < n; i++) {
+    const x = i ? make(seed + i) : best;
+    const v = tags(x).reduce((a, t) => a + (weak[t] ?? 0), 0);
+    if (v > top) [best, top] = [x, v];
+  }
+  return best;
 }

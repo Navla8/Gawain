@@ -1,5 +1,5 @@
 import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, skill, trackLevelText } from '../engine/curriculum.ts';
-import { FAST_STREAK, MASTER_STREAK, RELEARN_STREAK, blocker, classify, computeProgress, isDue, type Progress } from '../engine/progress.ts';
+import { FAST_STREAK, FIRM, MASTER_STREAK, RELEARN_STREAK, blocker, classify, computeProgress, isDue, weakness, type Progress } from '../engine/progress.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll } from '../audio/synth.ts';
@@ -26,7 +26,8 @@ function doneAt(p: Progress, level: number): string | undefined {
 export function skillsScreen() {
   stopAll();
   setCounting(false);
-  const p = computeProgress(load().attempts);
+  const attempts = load().attempts;
+  const p = computeProgress(attempts);
   const today = dayKey(new Date());
   const lv = Math.min(p.level, MAX_LEVEL);
   const inLevel = SKILLS.filter((s) => s.level === lv);
@@ -55,12 +56,17 @@ export function skillsScreen() {
     return h('span', {}, '익히는 중 ', dots(st.lapsed ? RELEARN_STREAK : MASTER_STREAK));
   };
   const weak = SKILLS.filter((s) => classify(p, s.id) === 'weak');
+  // 단원마다 최근 20번에서 두 번 이상 틀린 요소(계이름·계이름 진행·음 길이), 많은 것부터 셋(기획 §M6.2)
+  const misses = (id: string) => {
+    const top = Object.entries(weakness(attempts, id)).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return top.length ? h('small', { class: 'miss' }, '자주 틀림 · ' + top.map(([t, n]) => `${t} ${n}`).join(' · ')) : '';
+  };
 
   const levels = LEVELS.map((L) => {
     const started = SKILLS.some((s) => s.level === L.level && classify(p, s.id) !== 'waiting');
     const status = 'planned' in L ? '준비 중' : doneAt(p, L.level) ? `완료 ${md(doneAt(p, L.level)!)}` : started ? '진행 중' : '차례 전';
     const rows = SKILLS.filter((s) => s.level === L.level).map((s) =>
-      h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id)));
+      h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id), misses(s.id)));
     return h('section', { class: 'lvl' + (L.level === lv ? ' current' : '') + ('planned' in L ? ' planned' : '') },
       h('header', {}, h('b', {}, `L${L.level}`), h('span', {}, L.name), h('em', {}, status)),
       h('p', {}, L.goal),
@@ -87,9 +93,9 @@ export function skillsScreen() {
     ),
     weak.length
       ? h('section', { class: 'changes bad' }, h('h2', {}, '약한 단원 · 대련에서 더 자주 나와요'),
-        ...weak.map((s) => h('p', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), s.name)))
+        ...weak.map((s) => h('p', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), s.name, misses(s.id))))
       : '',
-    h('p', { class: 'note' }, `유형마다 따로 레벨이 올라요. 연속 ${MASTER_STREAK}번 통과(80% 이상)하거나, 95% 이상으로 ${FAST_STREAK}번 연속 맞히면 숙달이에요. 처음 두 번 만에 숙달하면 ‘쉬움’이에요. 숙달한 단원은 연습에서 빠지고, 3일 → 7일 → 그 뒤로 14일마다 대련에서 점검해요. 점검에서 틀리면 ‘약함’으로 연습에 돌아와요.`),
+    h('p', { class: 'note' }, `유형마다 따로 레벨이 올라요. 연속 ${MASTER_STREAK}번 통과(80% 이상)하거나, 95% 이상으로 ${FAST_STREAK}번 연속 맞히면 숙달이에요. 처음 두 번 만에 숙달하면 ‘쉬움’이에요. 숙달한 단원은 연습에서 빠지고, 3일 → 7일 → 그 뒤로 14일마다 대련에서 점검해요. 점검을 ${Math.round(FIRM * 100)}% 미만으로 넘기면 간격이 늘지 않고, 한 번 확인한 단원의 점검은 재생 횟수가 줄어요(실전 조건). 점검에서 틀리면 ‘약함’으로 연습에 돌아와요. 자주 틀리는 요소는 대련 문항에 더 자주 들어가고, 대련에서 틀린 받아쓰기·리듬 문제는 다음 날부터 대련에 다시 나와요.`),
     ...levels,
     history,
     h('div', { class: 'backup' }, h('button', { onclick: startPlacement }, p.placed ? '배치고사 다시 보기' : '배치고사 보기')),

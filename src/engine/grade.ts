@@ -1,5 +1,6 @@
 import { TPB, type Note, type SoundEvent } from './types.ts';
 import { toEvents } from './score.ts';
+import { solfa } from './theory.ts';
 
 export type Verdict = 'ok' | 'pitch' | 'rhythm' | 'both' | 'missing' | 'extra';
 
@@ -59,4 +60,49 @@ export function grade(truthNotes: Note[], answerNotes: Note[]): GradeResult {
     pitchScore: notes.length ? pitchOk / notes.length : 1,
     rhythmScore: T.length ? rhythmOk / T.length : 1,
   };
+}
+
+// ───────── 약점 표식 (기획 §M6.2) ─────────
+// 선율은 '도→라'처럼 그 음으로 가는 계이름 진행, 리듬은 '16분'·'4분쉼표'처럼 음 길이로 적는다.
+// 문항에 든 표식(contentTags)과 틀린 표식(missTags)이 같은 말이라, 틀린 표식이 든 문항을 골라 더 자주 낼 수 있다.
+
+const DUR_NAMES: Record<number, string> = {
+  48: '온음표', 36: '점2분', 24: '2분', 18: '점4분', 12: '4분', 9: '점8분', 6: '8분', 3: '16분', 16: '셋잇단 2분', 8: '셋잇단 4분', 4: '셋잇단 8분', 2: '셋잇단 16분',
+};
+export const durName = (t: number) => DUR_NAMES[t] ?? `${+(t / TPB).toFixed(2)}박`;
+const durTag = (e: SoundEvent) => durName(e.dur) + (e.midi === null ? '쉼표' : '');
+
+/** 음 하나의 표식: 음 길이, 그리고 (리듬만이 아니면) 앞 음에서 이 음으로 가는 계이름 진행 */
+function eventTags(e: SoundEvent, prev: SoundEvent | undefined, fifths: number, rhythmOnly: boolean, part: 'pitch' | 'rhythm' | 'both') {
+  const out: string[] = [];
+  if (part !== 'pitch') out.push(durTag(e));
+  if (part !== 'rhythm' && !rhythmOnly && e.midi !== null && prev?.midi != null) out.push(`${solfa(prev.midi, fifths)}→${solfa(e.midi, fifths)}`);
+  return out;
+}
+
+/** 문항에 든 표식 */
+export function contentTags(notes: Note[], fifths: number, rhythmOnly = false): string[] {
+  const ev = toEvents(notes);
+  let prev: SoundEvent | undefined;
+  const out = new Set<string>();
+  for (const e of ev) {
+    for (const t of eventTags(e, prev, fifths, rhythmOnly, 'both')) out.add(t);
+    if (e.midi !== null) prev = e;
+  }
+  return [...out];
+}
+
+/** 채점 결과에서 틀린 표식. 리듬만 받아쓰기는 쉼표 자리에 적은 음표(채점기의 음높이 틀림)도 리듬 틀림 */
+export function missTags(r: GradeResult, fifths: number, rhythmOnly = false): string[] {
+  let prev: SoundEvent | undefined;
+  const out = new Set<string>();
+  for (const it of r.items) {
+    const t = it.truth;
+    if (!t) continue;
+    const v = rhythmOnly && it.verdict !== 'ok' ? 'rhythm' : it.verdict;
+    const part = v === 'missing' || v === 'both' ? 'both' : v === 'pitch' ? 'pitch' : v === 'rhythm' ? 'rhythm' : undefined;
+    if (part) for (const x of eventTags(t, prev, fifths, rhythmOnly, part)) out.add(x);
+    if (t.midi !== null) prev = t;
+  }
+  return [...out];
 }

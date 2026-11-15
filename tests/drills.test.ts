@@ -52,3 +52,21 @@ test('리듬 받아쓰기: 2마디를 꽉 채우고, 그 단원의 새 리듬이
   }
   assert.ok(rhythmItem('r1', 3).notes.every((n) => [12, 24, 48].includes(n.dur)));
 });
+
+test('약점 가중: 리듬·선율은 약점 표식이 든 문항을 더 자주 고르고, 고른 문항은 id의 시드로 다시 만들 수 있다', async () => {
+  const { bestOf } = await import('../src/engine/progress.ts');
+  const { contentTags } = await import('../src/engine/grade.ts');
+  const { melodyItem } = await import('../src/engine/melody.ts');
+  const has = (tag: string, weak: Record<string, number>) => {
+    let n = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const it = bestOf((s) => rhythmItem('r3b', s), (x) => contentTags(x.notes, x.fifths, true), seed * 100, weak);
+      if (contentTags(it.notes, 0, true).includes(tag)) n++;
+      assert.deepEqual(rhythmItem('r3b', Number(it.id.split('-')[2])), it);
+    }
+    return n;
+  };
+  assert.ok(has('점8분', { 점8분: 3 }) > has('점8분', {}));
+  const mel = bestOf((s) => melodyItem('g2c', s), (x) => contentTags(x.notes, x.fifths), 7, { '도→라': 5 });
+  assert.deepEqual(melodyItem('g2c', Number(mel.id.split('-')[2])), mel);
+});
