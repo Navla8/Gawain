@@ -57,25 +57,40 @@ export function setSettings(patch: Partial<Settings>) {
 /** 이 문제의 계이름을 읽는 법: 단조인지, 단조 도 기반 설정이면 그 으뜸음(theory.ts KeyRead) */
 export const keyRead = (p: { tonic: number; minor?: boolean }) => ({ minor: !!p.minor, ...(p.minor && settings().minorDo && { minorTonic: p.tonic }) });
 
-export function load(): Data {
+const empty = (): Data => ({ attempts: [], seconds: {} });
+
+/** 저장된 기록. 없으면 빈 기록, 있는데 읽을 수 없으면 null(빈 기록으로 덮어쓰지 않으려고 구분한다) */
+function read(): Data | null {
+  let raw: string | null = null;
+  try { raw = localStorage.getItem(KEY); } catch { return empty(); }
+  if (raw === null) return empty();
   try {
-    const d = JSON.parse(localStorage.getItem(KEY) ?? '');
+    const d = JSON.parse(raw);
     return { attempts: d.attempts ?? [], seconds: d.seconds ?? {} };
   } catch {
-    return { attempts: [], seconds: {} };
+    return null;
   }
 }
+
+export const load = (): Data => read() ?? empty();
+
+let onSaveFail: (() => void) | undefined;
+let warned = false;
+/** 기록을 저장하지 못했을 때 부를 알림(한 번만, 화면이 정한다) */
+export const setSaveFailHandler = (f: () => void) => { onSaveFail = f; warned = false; };
+const saveFailed = () => { if (!warned) { warned = true; onSaveFail?.(); } };
 
 /** 시도 하나를 기록한다 */
 export const record = (a: Attempt) => save((d) => d.attempts.push(a));
 
 export function save(update: (d: Data) => void) {
-  const d = load();
+  const d = read();
+  if (!d) return saveFailed(); // 읽을 수 없는 기록은 건드리지 않는다
   update(d);
   try {
     localStorage.setItem(KEY, JSON.stringify(d));
   } catch {
-    /* 저장소를 못 쓰는 환경(사생활 보호 모드 등)에서는 기록만 건너뛴다 */
+    saveFailed(); // 한도 초과·사생활 보호 모드 등: 기록만 건너뛰되 알린다
   }
 }
 

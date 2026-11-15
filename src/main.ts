@@ -7,7 +7,7 @@ import { computeProgress, isDue } from './engine/progress.ts';
 import { EST } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
-import { load, merge, setSettings, settings } from './store.ts';
+import { load, merge, setSaveFailHandler, setSettings, settings } from './store.ts';
 import { app, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
 import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
@@ -217,6 +217,7 @@ startActivityClock((secs, reached) => {
   if (reached) toast('오늘 10분 달성!');
 });
 
+setSaveFailHandler(() => toast('기록을 저장하지 못했어요 · 기록 내보내기를 해 두세요'));
 home();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js');
