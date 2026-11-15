@@ -145,9 +145,9 @@ function summary(run: Run) {
     : '';
 
   const levelBlock = run.kind === 'placement'
-    ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Placement'), h('b', {}, `Level ${lv}`), h('span', {}, after.level > MAX_LEVEL ? 'L0~L3을 모두 통과했어요' : levelName(lv)))
+    ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Placement'), h('b', {}, `Level ${lv}`), h('span', {}, after.level > MAX_LEVEL ? `L0~L${MAX_LEVEL}을 모두 통과했어요` : levelName(lv)))
     : up
-      ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'), h('b', {}, `Level ${lv}`), h('span', {}, after.level > MAX_LEVEL ? 'L0~L3을 모두 마쳤어요' : levelName(lv)))
+      ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'), h('b', {}, `Level ${lv}`), h('span', {}, after.level > MAX_LEVEL ? `L0~L${MAX_LEVEL}을 모두 마쳤어요` : levelName(lv)))
       : down
         ? h('section', { class: 'leveldown' }, h('b', {}, `Level ${lv}`), h('span', {}, '잊은 단원을 다시 익히면 돌아가요'))
         : trackUps.length

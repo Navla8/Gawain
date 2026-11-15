@@ -47,7 +47,9 @@ test('같은 시드는 같은 선율, id에 단원과 시드가 들어 있다', 
   assert.equal(melodyItem('g2b', 42).id, 'mel-g2b-42');
 });
 
-for (const s of ladder('dictation')) {
+/** L4 반음계·전조 단원은 음계 밖 음이 나오므로 따로 검사한다(아래) */
+const L4 = ['g4a', 'g4b'];
+for (const s of ladder('dictation').filter((x) => !L4.includes(x.id))) {
   const u = UNITS[s.id];
   test(`${s.id} ${s.name}: 단원 규칙 (${SEEDS}개)`, () => {
     for (let seed = 1; seed <= SEEDS; seed++) {
@@ -127,6 +129,51 @@ test('홑박자 단원은 3/4도 나오고, 단조는 딸림화음(솔♯) 도�
 
 test('단원이 올라가도 음표 수는 한 번에 뛰지 않는다(4마디 단원 평균 차이 4개 이하)', () => {
   const avg = (id: string) => Array.from({ length: SEEDS }, (_, i) => pitched(melodyItem(id, i + 1)).length).reduce((a, b) => a + b, 0) / SEEDS;
-  const four = ladder('dictation').filter((s) => UNITS[s.id].bars === 4).map((s) => [s.id, avg(s.id)] as const);
+  const four = ladder('dictation').filter((s) => UNITS[s.id].bars === 4 && !L4.includes(s.id)).map((s) => [s.id, avg(s.id)] as const);
   for (let i = 1; i < four.length; i++) assert.ok(four[i][1] - four[i - 1][1] <= 4, `${four[i - 1][0]} ${four[i - 1][1]} → ${four[i][0]} ${four[i][1]}`);
+});
+
+test('g4a 반음계 선율: 반음계 음이 둘 이상, 모두 반음으로 해결하고 올림·내림 표기가 해결 방향과 맞다', () => {
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const p = melodyItem('g4a', seed);
+    const at = `g4a ${seed}`;
+    assert.equal(durs(p).reduce((a, b) => a + b, 0), barTicks(p) * UNITS.g4a.bars, `${at}: 마디`);
+    const ns = p.notes.filter((n) => n.midi !== null);
+    let chroma = 0;
+    ns.forEach((n, i) => {
+      const rel = mod(n.midi! - p.tonic, 12);
+      if (MAJOR.includes(rel)) { assert.equal(n.spell, undefined, `${at}: 음계 음에 표기 힌트`); return; }
+      chroma++;
+      const next = ns[i + 1];
+      assert.ok(next && Math.abs(next.midi! - n.midi!) === 1, `${at}: 반음 해결 ${i}`);
+      assert.equal(n.spell, next.midi! > n.midi! ? 1 : -1, `${at}: 표기 방향 ${i}`);
+      assert.ok(i > 0 && Math.abs(n.midi! - ns[i - 1].midi!) !== 6, `${at}: 증4도 진입`);
+    });
+    assert.ok(chroma >= 2, `${at}: 반음계 음 ${chroma}`);
+    assert.ok(pitched(p).every((m) => m >= 53 && m <= 84), `${at}: 음역`);
+    assert.equal(mod(pitched(p).at(-1)! - p.tonic, 12), 0, `${at}: 끝 음`);
+  }
+});
+
+test('g4b 딸림조 전조: 5마디부터 딸림조(새 도 = 솔), 새 조의 티(파♯)가 나오고 새 으뜸음으로 끝난다', () => {
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const p = melodyItem('g4b', seed);
+    const at = `g4b ${seed}`;
+    const len = barTicks(p);
+    assert.equal(p.bars, 8);
+    assert.ok(p.modulation && p.modulation.at === 4 * len && mod(p.modulation.tonic - p.tonic, 12) === 7, `${at}: 전조 표시`);
+    let t = 0, fi = false;
+    const first: number[] = [], second: number[] = [];
+    for (const n of p.notes) {
+      if (n.midi !== null) (t < p.modulation!.at ? first : second).push(n.midi);
+      if (n.midi !== null && t >= p.modulation!.at && mod(n.midi - p.modulation!.tonic, 12) === 11) { fi = true; assert.equal(n.spell, 1, `${at}: 파♯ 표기`); }
+      t += n.dur;
+    }
+    assert.ok(first.every((m) => MAJOR.includes(mod(m - p.tonic, 12))), `${at}: 앞 악절은 원조`);
+    assert.ok(second.every((m) => MAJOR.includes(mod(m - p.modulation!.tonic, 12))), `${at}: 뒤 악절은 딸림조`);
+    assert.ok(fi, `${at}: 새 조의 티`);
+    assert.ok(Math.abs(second[0] - first.at(-1)!) <= 5, `${at}: 전조 지점 도약 ${first.at(-1)} → ${second[0]}`);
+    assert.equal(mod(second.at(-1)! - p.modulation!.tonic, 12), 0, `${at}: 새 으뜸음으로 끝`);
+    assert.ok(pitched(p).every((m) => m >= 53 && m <= 84), `${at}: 음역`);
+  }
 });

@@ -6,6 +6,8 @@ export interface Note {
   midi: number | null;
   dur: number;
   tie?: boolean;
+  /** 반음계 음의 표기: 1이면 올림(♯·♮, 위로 해결), -1이면 내림(♭·♮, 아래로 해결). 없으면 조표 방향(기획 §M7.5) */
+  spell?: 1 | -1;
 }
 
 export interface Problem {
@@ -24,6 +26,8 @@ export interface Problem {
   bars: number;
   /** 못갖춘마디의 길이(틱). 첫 마디가 이만큼만 있고 마지막 마디가 이만큼 짧다 */
   pickup?: number;
+  /** 전조: 이 틱부터 으뜸음(도)이 바뀐다. 계이름·솔페지를 새 도로 읽는다(기획 §M7.5) */
+  modulation?: { at: number; tonic: number };
   /** 4분음표 기준 BPM */
   tempo: number;
   notes: Note[];

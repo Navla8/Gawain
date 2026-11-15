@@ -57,6 +57,10 @@ interface Unit {
   meters?: number[];
   /** 한 박짜리 못갖춘마디(여린박)로 시작 */
   pickup?: boolean;
+  /** 반음계 보조음·경과음을 마디에 0~1개(둘 이상), 반음으로 해결(기획 §M7.5) */
+  chromatic?: boolean;
+  /** 8마디: 5마디부터 딸림조(새 도 = 솔)로 전조. 걸음은 원조 칸으로 하고 뒤 악절의 화음·종지는 새 조(4칸 위)로 본다 */
+  modulate?: boolean;
   /** 이 단원의 새 음높이 요소가 들어갔는지(음계 칸 열을 받는다) */
   fresh?: (steps: number[]) => boolean;
 }
@@ -109,6 +113,9 @@ export const UNITS: Record<string, Unit> = {
   },
   g3d: { meters: M34, dense: 5, bars: 4, rhythm: 'r3a', freshRhythm: true, leap: ALL, progs: [...P_DIA, ...P_IV], range: [-3, 9], keys: 4, tempo: 72 },
   g3e: { meters: M34, dense: 5, bars: 4, rhythm: 'r3b', freshRhythm: true, leap: ALL, progs: [...P_DIA, ...P_IV], range: [-3, 9], keys: 4, tempo: 72 },
+  // L4(기획 §M7.5): 익숙한 리듬(점4분까지) 위에 새 요소 하나
+  g4a: { meters: M34, dense: 4, bars: 4, rhythm: 'r2b', leap: ALL, progs: P_DIA, range: [-3, 9], keys: 3, tempo: 72, chromatic: true },
+  g4b: { meters: M34, dense: 4, bars: 8, rhythm: 'r2b', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 11], keys: 3, tempo: 76, modulate: true },
   // 못갖춘마디: 한 박 여린박(딸림화음 위 솔·미)에서 으뜸화음 센박으로. 마지막 마디는 한 박 짧다
   g3g: { meters: M34, dense: 5, bars: 4, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV], range: [-3, 9], keys: 4, tempo: 72, pickup: true },
   g3f: { meters: M34, dense: 4.5, bars: 8, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV, ...P_V], range: [-3, 9], keys: 4, tempo: 72, minor: 0.25,
@@ -166,10 +173,13 @@ function walk(u: Unit, slots: Slot[], chords: string[], leapOk: string[], r: () 
   const [lo, hi] = u.range;
   const beat = u.rhythm === '6/8' ? 18 : beats === 3 ? 36 : TPB * 2; // 센박: 마디 첫 박(4/4는 가운데 박도)
   const chordAt = (bar: number) => (bar < 0 ? 'V' : chords[bar]); // 못갖춘마디는 딸림화음 위
+  // 전조 단원의 뒤 악절은 새 조: 화음·종지를 4칸(솔) 위에서 센다
+  const off = (bar: number) => (u.modulate && bar >= 4 ? 4 : 0);
   const halfEnd = u.bars === 8 ? notes.filter((s) => s.bar <= 3).length - 1 : -1;
   const steps: number[] = [];
   for (let i = 0; i < n; i++) {
     const chord = CHORDS[chordAt(notes[i].bar)];
+    const o = off(notes[i].bar);
     let cand: number[];
     if (i === 0) cand = (u.pickup ? [-3, 4, 2] : [0, 2, 4, 7]).filter((s) => s >= lo && s <= hi);
     else {
@@ -184,7 +194,7 @@ function walk(u: Unit, slots: Slot[], chords: string[], leapOk: string[], r: () 
         const here = [chordAt(notes[i].bar), chordAt(notes[i - 1].bar)].filter((c) => leapOk.includes(c));
         for (let t = lo; t <= hi; t++) {
           const d = Math.abs(t - cur);
-          if (d < 2 || d === 6 || d > 7 || !here.some((c) => inChord(c, cur, t))) continue;
+          if (d < 2 || d === 6 || d > 7 || !here.some((c) => inChord(c, cur - o, t - o))) continue;
           if (Math.abs(semis(t, !!u.minor) - semis(cur, !!u.minor)) === 6) continue;
           cand.push(t);
         }
@@ -200,15 +210,15 @@ function walk(u: Unit, slots: Slot[], chords: string[], leapOk: string[], r: () 
       }
     }
     // 종지: 마지막은 으뜸음, 그 앞은 레·티(단조는 티·솔♯). 8마디 앞 악절 끝은 딸림화음 음
-    if (i === n - 1) cand = cand.filter((t) => mod(t, 7) === 0 && Math.abs(t - steps[i - 1]) === 1);
-    else if (i === n - 2) cand = cand.filter((t) => [1, 6].includes(mod(t, 7)) && (t + 1 <= hi || mod(t, 7) === 1));
+    if (i === n - 1) cand = cand.filter((t) => mod(t - o, 7) === 0 && Math.abs(t - steps[i - 1]) === 1);
+    else if (i === n - 2) cand = cand.filter((t) => [1, 6].includes(mod(t - o, 7)) && (t + 1 <= hi || mod(t - o, 7) === 1));
     else if (i === halfEnd) cand = cand.filter((t) => CHORDS.V.includes(mod(t, 7)));
     if (!cand.length) return undefined;
     const strong = notes[i].onset % beat === 0;
     const w = (t: number) => {
       const prev = i ? steps[i - 1] : t;
       let x = t === prev ? 0.3 : isLeap(prev, t) ? 0.6 : 1;
-      if (strong) x *= chord.includes(mod(t, 7)) ? 3 : 0.5;
+      if (strong) x *= chord.includes(mod(t - o, 7)) ? 3 : 0.5;
       return x;
     };
     const ws = cand.map(w);
@@ -218,6 +228,28 @@ function walk(u: Unit, slots: Slot[], chords: string[], leapOk: string[], r: () 
     steps.push(cand[k]);
   }
   return steps;
+}
+
+/** 반음계 보조음·경과음(기획 §M7.5): 여린박 음을 다음 음의 반음 아래(올림, 위로 해결)나 반음 위(내림, 아래로 해결)로 바꾼다.
+ *  다음 음과 온음 사이일 때만, 마디에 하나까지, 첫 음과 마지막 두 음은 두고, 앞 음에서 증4도·6도 넘게 뛰지 않게. 둘 이상 바꾸면 true */
+function chromaticize(notes: Note[], slots: Slot[], tonic: number, beats: number, r: () => number): boolean {
+  const idx = notes.map((n, i) => i).filter((i) => notes[i].midi !== null);
+  const used = new Set<number>();
+  let n = 0;
+  for (let k = 1; k < idx.length - 2; k++) {
+    const [x, y, z] = [notes[idx[k - 1]], notes[idx[k]], notes[idx[k + 1]]];
+    const s = slots[idx[k]];
+    if (used.has(s.bar) || s.onset % (beats === 3 ? 36 : TPB) === 0 || r() < 0.4) continue;
+    const dir = Math.sign(z.midi! - y.midi!);
+    if (Math.abs(z.midi! - y.midi!) !== 2) continue;
+    const c = z.midi! - dir; // 다음 음의 반음 아래(위로 갈 때)·위(아래로 갈 때)
+    if (MAJOR.includes(mod(c - tonic, 12)) || c === x.midi || Math.abs(c - x.midi!) === 6 || Math.abs(c - x.midi!) > 9) continue;
+    Object.assign(y, { midi: c, spell: dir > 0 ? 1 : -1 });
+    used.add(s.bar);
+    n++;
+    k++; // 해결음은 그대로 둔다
+  }
+  return n >= 2;
 }
 
 /** 선율 받아쓰기 한 문제. 같은 시드는 같은 문제(오답 다시 풀기는 id의 시드로 다시 만든다) */
@@ -234,7 +266,7 @@ export function melodyItem(id: string, seed: number, name = id): Problem {
   const fifths = Math.floor(r() * (2 * u.keys + 1)) - u.keys;
   const pc = mod(fifths * 7 + (minor ? 9 : 0), 12);
 
-  let best: { steps: number[]; slots: Slot[]; tonic: number } | undefined;
+  let best: { notes: Note[]; tonic: number } | undefined;
   for (let tries = 0; tries < 2000 && !best; tries++) {
     const slots = rhythm(u, r, beats);
     if (!slots) continue;
@@ -243,8 +275,12 @@ export function melodyItem(id: string, seed: number, name = id): Problem {
     const steps = walk(u, slots, chords, leapOk, r, beats);
     if (!steps) continue;
     if (u.fresh && !minor && !u.fresh(steps)) continue;
-    // 단조의 파♯·솔♯이 생기면서 도약이 증4도가 되면 다시 만든다
-    const sem = steps.map((s, i) => semis(s, minor, steps[i + 1], steps[i + 2]));
+    // 전조: 뒤 악절의 파는 새 조의 티(파♯). 새 조의 티가 한 번은 나와야 한다
+    const bars = slots.filter((s) => s.dur > 0).map((s) => s.bar);
+    const raised = (i: number) => !!u.modulate && bars[i] >= 4 && mod(steps[i], 7) === 3;
+    if (u.modulate && !steps.some((_, i) => raised(i))) continue;
+    // 단조의 파♯·솔♯(또는 전조의 파♯)이 생기면서 도약이 증4도가 되면 다시 만든다
+    const sem = steps.map((s, i) => semis(s, minor, steps[i + 1], steps[i + 2]) + (raised(i) ? 1 : 0));
     if (steps.some((s, i) => i && Math.abs(s - steps[i - 1]) >= 2 && Math.abs(sem[i] - sem[i - 1]) === 6)) continue;
     // 으뜸음(장조 도, 단조 라)을 조표에 맞추고, 선율이 건반(F3~C6) 안에 들면서 가운데가 G4에 가장 가까운 옥타브. 안 들면 다시 만든다
     const ss = sem;
@@ -252,23 +288,31 @@ export function melodyItem(id: string, seed: number, name = id): Problem {
     const fits = [36, 48, 60, 72].map((o) => o + pc).filter((t) => t + low >= 53 && t + high <= 84);
     if (!fits.length) continue;
     const dist = (t: number) => Math.abs(t + (low + high) / 2 - 67);
-    best = { steps, slots, tonic: fits.reduce((a, t) => (dist(t) < dist(a) ? t : a)) };
+    const tonic = fits.reduce((a, t) => (dist(t) < dist(a) ? t : a));
+    let k = 0;
+    const notes: Note[] = slots.map((s) => {
+      if (s.dur < 0) return { midi: null, dur: -s.dur };
+      const i = k++;
+      return { midi: tonic + sem[i], dur: s.dur, ...(raised(i) && { spell: 1 as const }) };
+    });
+    if (u.chromatic && !chromaticize(notes, slots, tonic, beats, r)) continue;
+    // 전조 지점(4마디 끝 → 5마디 첫 음)은 4도 안으로
+    if (u.modulate) {
+      const ps = notes.filter((x) => x.midi !== null), j = bars.findIndex((b) => b >= 4);
+      if (Math.abs(ps[j].midi! - ps[j - 1].midi!) > 5) continue;
+    }
+    best = { notes, tonic };
   }
   if (!best) throw new Error(`선율 생성 실패: ${id} ${seed}`);
 
-  const { steps, slots, tonic } = best;
-  let k = 0;
-  const notes: Note[] = slots.map((s) => {
-    if (s.dur < 0) return { midi: null, dur: -s.dur };
-    const i = k++;
-    return { midi: tonic + semis(steps[i], minor, steps[i + 1], steps[i + 2]), dur: s.dur };
-  });
+  const { notes, tonic } = best;
   const compound = u.rhythm === '6/8';
   return {
     id: `mel-${id}-${seed}`,
     title: `${name} · ${keyName({ tonic, fifths, minor })}`,
     tonic, ...(minor && { minor: true }), fifths,
     beatsPerBar: beats, ...(compound && { beatTicks: 18 }), ...(u.pickup && { pickup: TPB }),
+    ...(u.modulate && { modulation: { at: 4 * beats * TPB, tonic: tonic + 7 } }),
     bars: u.bars, tempo: u.tempo, notes,
   };
 }

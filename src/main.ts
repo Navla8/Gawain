@@ -47,7 +47,7 @@ function home() {
     h('button', { class: 'level-row', onclick: skillsScreen },
       h('span', { class: 'lv' }, h('small', {}, 'Level'), h('b', {}, `${lv}`)),
       h('span', { class: 'lv-text' },
-        h('strong', {}, p.level > MAX_LEVEL ? 'L0~L3 완료' : LEVELS[lv].name),
+        h('strong', {}, p.level > MAX_LEVEL ? `L0~L${MAX_LEVEL} 완료` : LEVELS[lv].name),
         h('span', {}, fresh ? '배치고사 전' : `${inLevel.length}단원 중 ${masteredIn} 숙달` + (due ? ` · 점검할 단원 ${due}` : '')),
         fresh ? '' : h('span', {}, TRACKS.map((t) => `${t.short} ${trackLevelText(p.trackLevels[t.id])}`).join(' · ')),
         h('div', { class: 'meter' }, h('i', { style: `width:${Math.round((masteredIn / inLevel.length) * 100)}%` })),

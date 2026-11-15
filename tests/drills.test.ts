@@ -77,3 +77,25 @@ test('약점 가중: 리듬·선율은 약점 표식이 든 문항을 더 자주
   const mel = bestOf((s) => melodyItem('g2c', s), (x) => contentTags(x.notes, x.fifths), 7, { '도→라': 5 });
   assert.deepEqual(melodyItem('g2c', Number(mel.id.split('-')[2])), mel);
 });
+
+test('L4 계이름 듣기: 반음계 음은 반음으로 해결하고, 반음계 단원 버튼은 12개(한 음높이에 이름 하나)', () => {
+  const CHROMA = ['도', '도♯', '레', '미♭', '미', '파', '파♯', '솔', '솔♯', '라', '티♭', '티'];
+  for (const id of ['d4a', 'd4b']) for (let seed = 1; seed <= 300; seed++) {
+    const it = degreeItem(id, seed);
+    assert.deepEqual(it.choices, CHROMA);
+    const rel = it.midis.map((m) => pc(m - it.tonic));
+    assert.ok(rel.some((r) => [1, 3, 6, 8, 10].includes(r)), `${id} ${seed}: 반음계 음`);
+    if (id === 'd4a') rel.forEach((r, i) => { if ([1, 3, 6, 8, 10].includes(r)) assert.ok(i + 1 < rel.length && Math.abs(it.midis[i + 1] - it.midis[i]) === 1, `${id} ${seed}: 해결`); });
+    if (id === 'd4b') assert.ok(rel.some((r) => [6, 1, 8].includes(r)), `${id} ${seed}: 부속화음의 이끈음`);
+  }
+});
+
+test('L4 리듬: 셋잇단(홑박자)·둘잇단(6/8)', () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    const a = rhythmItem('r4a', seed).notes.map((n) => n.dur);
+    assert.ok(a.includes(4) || a.includes(8), `r4a ${seed}: 셋잇단`);
+    const b = rhythmItem('r4b', seed);
+    assert.equal(b.beatTicks, 18);
+    assert.ok(b.notes.some((n) => n.dur === 9), `r4b ${seed}: 둘잇단`);
+  }
+});

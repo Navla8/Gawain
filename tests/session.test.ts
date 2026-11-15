@@ -102,7 +102,7 @@ test('모두 숙달하고 점검할 것도 없으면 가장 어려운 단원으�
   const p = computeProgress(masterAll(SKILLS.map((s) => s.id)));
   const plan = planMatch(p, '2026-11-01');
   assert.ok(plan.length > 0 && plan.every((s) => s.role === 'check'));
-  assert.ok(plan.some((s) => s.skill === 'g3f'));
+  assert.ok(plan.some((s) => s.skill === 'g4b'));
 });
 
 test('배치고사: 유형마다 이분 탐색해 끝난다', () => {
@@ -125,7 +125,7 @@ test('배치고사: 유형마다 이분 탐색해 끝난다', () => {
 });
 
 test('배치고사 남은 문항 수', () => {
-  assert.ok(placementLeft([]) >= 11 && placementLeft([]) <= 15);
+  assert.ok(placementLeft([]) >= 11 && placementLeft([]) <= 16);
   const all = (ok: boolean) => { const r: { skill: string; ok: boolean }[] = []; for (let s = nextPlacement(r); s; s = nextPlacement(r)) r.push({ skill: s.skill!, ok }); return r.length; };
   assert.ok(placementLeft([]) >= all(true));
 });

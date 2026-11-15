@@ -257,14 +257,22 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
   const offset = p.pickup ? len - p.pickup : 0;
   /** 마디 이름: 못갖춘마디가 있으면 그 마디가 0 */
   const barLabel = (b: number) => (offset ? (b ? `${b}마디` : '못갖춘마디') : `${b + 1}마디`);
-  const name = (m: number | null) => (m === null ? '쉼표' : rhythm ? '음표' : `${solfa(m, p.fifths, keyRead(p))}(${noteName(m, p.fifths, p.minor)})`);
+  // 전조 뒤 음은 새 도(조표 하나 더 ♯ 쪽)로 읽는다(기획 §M7.5)
+  // 정답 음은 반음계 표기 힌트(Note.spell)를 따른다
+  const name = (m: number | null, start = 0, prefer?: 1 | -1) => {
+    if (m === null) return '쉼표';
+    if (rhythm) return '음표';
+    const moved = !!p.modulation && start >= p.modulation.at;
+    return `${solfa(m, p.fifths + (moved ? 1 : 0), keyRead(p), moved ? undefined : prefer)}(${noteName(m, p.fifths, p.minor, prefer)})`;
+  };
+  const hint = (e: { src: number[] }) => p.notes[e.src[0]]?.spell;
   const bySrc = (pick: (i: GradeItem) => GradeItem['truth']) => {
     const map = new Map<number, GradeItem>();
     for (const it of r.items) pick(it)?.src.forEach((s) => map.set(s, it));
     return map;
   };
   const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
-  const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, solfege: !rhythm, key: keyRead(p), takadimi: true };
+  const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, solfege: !rhythm, key: keyRead(p), takadimi: true, modulation: p.modulation };
 
   const mine = renderStaff({
     ...staff, notes: answer,
@@ -297,10 +305,10 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
     const ev = (i.truth ?? i.answer)!;
     const b = Math.min(p.bars - (offset ? 0 : 1), Math.floor((ev.start + offset) / len));
     const t = i.truth, a = i.answer;
-    const text = i.verdict === 'missing' ? `빠진 음: ${name(t!.midi)} ${durName(t!.dur)}`
-      : i.verdict === 'extra' ? `남는 음: ${name(a!.midi)} ${durName(a!.dur)}`
+    const text = i.verdict === 'missing' ? `빠진 음: ${name(t!.midi, t!.start, hint(t!))} ${durName(t!.dur)}`
+      : i.verdict === 'extra' ? `남는 음: ${name(a!.midi, a!.start)} ${durName(a!.dur)}`
       : [
-        i.verdict !== 'rhythm' && `${name(a!.midi)} → ${name(t!.midi)}${i.octave ? ' (옥타브)' : ''}`,
+        i.verdict !== 'rhythm' && `${name(a!.midi, a!.start)} → ${name(t!.midi, t!.start, hint(t!))}${i.octave ? ' (옥타브)' : ''}`,
         i.verdict !== 'pitch' && `${durName(a!.dur)} → ${durName(t!.dur)}`,
       ].filter(Boolean).join(' · ') + '여야 해요';
     return h('li', {}, h('button', { class: 'mini', onclick: () => compare(b) }, `▶ ${barLabel(b)}`), h('span', {}, text));

@@ -84,7 +84,7 @@ export function skillsScreen() {
   app.replaceChildren(
     header('실력'),
     h('section', { class: 'level-hero' },
-      h('p', { class: 'eyebrow' }, p.level > MAX_LEVEL ? 'L0~L3 완료' : '지금 레벨'),
+      h('p', { class: 'eyebrow' }, p.level > MAX_LEVEL ? `L0~L${MAX_LEVEL} 완료` : '지금 레벨'),
       h('b', {}, `Level ${lv}`),
       h('span', {}, LEVELS[lv].name),
       h('div', { class: 'meter' }, h('i', { style: `width:${Math.round((masteredIn / inLevel.length) * 100)}%` })),
