@@ -73,27 +73,27 @@ export const durName = (t: number) => DUR_NAMES[t] ?? `${+(t / TPB).toFixed(2)}�
 const durTag = (e: SoundEvent) => durName(e.dur) + (e.midi === null ? '쉼표' : '');
 
 /** 음 하나의 표식: 음 길이, 그리고 (리듬만이 아니면) 앞 음에서 이 음으로 가는 계이름 진행 */
-function eventTags(e: SoundEvent, prev: SoundEvent | undefined, fifths: number, rhythmOnly: boolean, part: 'pitch' | 'rhythm' | 'both') {
+function eventTags(e: SoundEvent, prev: SoundEvent | undefined, fifths: number, rhythmOnly: boolean, part: 'pitch' | 'rhythm' | 'both', minor: boolean) {
   const out: string[] = [];
   if (part !== 'pitch') out.push(durTag(e));
-  if (part !== 'rhythm' && !rhythmOnly && e.midi !== null && prev?.midi != null) out.push(`${solfa(prev.midi, fifths)}→${solfa(e.midi, fifths)}`);
+  if (part !== 'rhythm' && !rhythmOnly && e.midi !== null && prev?.midi != null) out.push(`${solfa(prev.midi, fifths, { minor })}→${solfa(e.midi, fifths, { minor })}`);
   return out;
 }
 
 /** 문항에 든 표식 */
-export function contentTags(notes: Note[], fifths: number, rhythmOnly = false): string[] {
+export function contentTags(notes: Note[], fifths: number, rhythmOnly = false, minor = false): string[] {
   const ev = toEvents(notes);
   let prev: SoundEvent | undefined;
   const out = new Set<string>();
   for (const e of ev) {
-    for (const t of eventTags(e, prev, fifths, rhythmOnly, 'both')) out.add(t);
+    for (const t of eventTags(e, prev, fifths, rhythmOnly, 'both', minor)) out.add(t);
     if (e.midi !== null) prev = e;
   }
   return [...out];
 }
 
 /** 채점 결과에서 틀린 표식. 리듬만 받아쓰기는 쉼표 자리에 적은 음표(채점기의 음높이 틀림)도 리듬 틀림 */
-export function missTags(r: GradeResult, fifths: number, rhythmOnly = false): string[] {
+export function missTags(r: GradeResult, fifths: number, rhythmOnly = false, minor = false): string[] {
   let prev: SoundEvent | undefined;
   const out = new Set<string>();
   for (const it of r.items) {
@@ -101,7 +101,7 @@ export function missTags(r: GradeResult, fifths: number, rhythmOnly = false): st
     if (!t) continue;
     const v = rhythmOnly && it.verdict !== 'ok' ? 'rhythm' : it.verdict;
     const part = v === 'missing' || v === 'both' ? 'both' : v === 'pitch' ? 'pitch' : v === 'rhythm' ? 'rhythm' : undefined;
-    if (part) for (const x of eventTags(t, prev, fifths, rhythmOnly, part)) out.add(x);
+    if (part) for (const x of eventTags(t, prev, fifths, rhythmOnly, part, minor)) out.add(x);
     if (t.midi !== null) prev = t;
   }
   return [...out];

@@ -16,7 +16,8 @@ function step(p: Problem, midi: number): number {
   const rel = midi - p.tonic;
   const scale = p.minor ? MINOR : MAJOR;
   let i = scale.indexOf(mod(rel, 12));
-  if (i < 0 && p.minor && mod(rel, 12) === 11) i = 6;
+  if (i < 0 && p.minor && mod(rel, 12) === 11) i = 6; // 솔♯
+  if (i < 0 && p.minor && mod(rel, 12) === 9) i = 5; // 가락단음계 파♯
   assert.ok(i >= 0, `${p.id}: 음계 밖의 음 ${midi}`);
   return 7 * Math.floor(rel / 12) + i;
 }
@@ -54,7 +55,12 @@ for (const s of ladder('dictation')) {
       const at = `${s.id} ${seed}`;
       // 마디를 꽉 채우고, 쓸 수 있는 음 길이만, 조표 상한, 건반 음역 F3~C6
       assert.equal(durs(p).reduce((a, b) => a + b, 0), barTicks(p) * u.bars, `${at}: 마디`);
-      assert.ok(durs(p).every((d) => DURS[u.rhythm].includes(d)), `${at}: 음 길이 ${durs(p)}`);
+      const allowed = [...DURS[u.rhythm], ...(p.beatsPerBar === 3 || u.pickup ? [36] : [])];
+      assert.ok(durs(p).every((d) => allowed.includes(d)), `${at}: 음 길이 ${durs(p)}`);
+      assert.ok(u.rhythm === '6/8' ? p.beatsPerBar === 2 : (u.meters ?? [4]).includes(p.beatsPerBar), `${at}: 박자`);
+      // 못갖춘마디: 한 박짜리 여린박 음으로 시작(마지막 마디가 그만큼 짧다)
+      if (u.pickup) assert.ok(p.pickup === 12 && p.notes[0].dur === 12 && p.notes[0].midi !== null, `${at}: 못갖춘마디`);
+      else assert.equal(p.pickup, undefined, `${at}: 못갖춘마디 아님`);
       assert.ok(Math.abs(p.fifths) <= u.keys, `${at}: 조표`);
       assert.ok(pitched(p).every((m) => m >= 53 && m <= 84), `${at}: 음역`);
       assert.equal(p.notes[0].midi !== null && p.notes.at(-1)!.midi !== null, true, `${at}: 쉼표로 시작·끝`);
@@ -71,7 +77,7 @@ for (const s of ladder('dictation')) {
       assert.ok(p.notes.at(-1)!.dur >= 18, `${at}: 마지막 음 길이`);
 
       // 도약은 그 단원이 허용한 화음의 구성음 사이에서만. 7도·증4도 도약 없음. 큰 도약 뒤엔 반대 방향 순차
-      const chords = p.minor ? ['I', 'IV'] : u.leap;
+      const chords = p.minor ? u.minorLeap! : u.leap;
       for (let i = 1; i < st.length; i++) {
         const d = st[i] - st[i - 1];
         // 순차진행은 반음 또는 온음(단조의 파→솔♯ 증2도 금지)
@@ -81,8 +87,11 @@ for (const s of ladder('dictation')) {
         assert.ok(Math.abs(d) !== 6 && Math.abs(d) <= 7 && Math.abs(ms[i] - ms[i - 1]) !== 6, `${at}: 7도·증4도 도약`);
         if (Math.abs(d) >= 3 && i + 1 < st.length) assert.equal(st[i + 1] - st[i], -Math.sign(d), `${at}: 큰 도약 뒤 순차 ${i}`);
       }
-      // 단조의 솔♯은 라로 올라갈 때만
-      if (p.minor) ms.forEach((m, i) => { if (mod(m - p.tonic, 12) === 11) assert.equal(st[i + 1], st[i] + 1, `${at}: 솔♯ 해결`); });
+      // 단조의 솔♯은 라로 올라갈 때만, 파♯은 솔♯ → 라로 올라갈 때만(가락단음계 상행). 내려갈 때는 자연단음계
+      if (p.minor) ms.forEach((m, i) => {
+        if (mod(m - p.tonic, 12) === 11) assert.equal(st[i + 1], st[i] + 1, `${at}: 솔♯ 해결`);
+        if (mod(m - p.tonic, 12) === 9) assert.ok(st[i + 1] === st[i] + 1 && st[i + 2] === st[i] + 2, `${at}: 파♯ 해결`);
+      });
       // 새 요소
       if (FRESH_RHYTHM[s.id]) assert.ok(FRESH_RHYTHM[s.id](p), `${at}: 새 리듬 ${durs(p)}`);
       if (u.fresh && !p.minor) assert.ok(u.fresh(st), `${at}: 새 음높이 요소`);
@@ -92,6 +101,29 @@ for (const s of ladder('dictation')) {
     }
   });
 }
+
+test('홑박자 단원은 3/4도 나오고, 단조는 딸림화음(솔♯) 도약과 가락단음계 상행·자연단음계 하행이 나온다', () => {
+  const metersOf = (id: string) => new Set(Array.from({ length: SEEDS }, (_, i) => melodyItem(id, i + 1).beatsPerBar));
+  assert.deepEqual([...metersOf('g2a')].sort(), [3, 4]);
+  assert.deepEqual([...metersOf('g1a')], [4]);
+  let fiSi = 0, down = 0, vLeap = 0, diaLeap = 0;
+  for (const id of ['g3b', 'g3f']) for (let seed = 1; seed <= SEEDS; seed++) {
+    const p = melodyItem(id, seed);
+    if (!p.minor) continue;
+    const ms = pitched(p), rel = ms.map((m) => mod(m - p.tonic, 12));
+    rel.forEach((r, i) => {
+      if (r === 9 && rel[i + 1] === 11) fiSi++;
+      if (r === 0 && rel[i + 1] === 10 && rel[i + 2] === 8) down++; // 라 → 솔 → 파
+      const a = rel[i - 1], d = Math.abs(ms[i] - (ms[i - 1] ?? ms[i]));
+      if (i && d >= 3 && [4, 11, 2].includes(a) && [4, 11, 2].includes(r)) vLeap++; // 미·솔♯·티 사이 도약
+      if (id === 'g3f' && i && d >= 3 && [[2, 5], [5, 2], [8, 0], [0, 8], [2, 8], [8, 2]].some(([x, y]) => x === a && y === r)) diaLeap++; // ii°·VI 도약
+    });
+  }
+  assert.ok(fiSi > 0, '가락단음계 상행 파♯→솔♯');
+  assert.ok(down > 0, '자연단음계 하행 라→솔→파');
+  assert.ok(vLeap > 0, '딸림화음 도약');
+  assert.ok(diaLeap > 0, 'ii°·VI 도약(8마디 단조)');
+});
 
 test('단원이 올라가도 음표 수는 한 번에 뛰지 않는다(4마디 단원 평균 차이 4개 이하)', () => {
   const avg = (id: string) => Array.from({ length: SEEDS }, (_, i) => pitched(melodyItem(id, i + 1)).length).reduce((a, b) => a + b, 0) / SEEDS;

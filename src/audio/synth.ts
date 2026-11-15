@@ -131,9 +131,12 @@ export function playProblem(p: Problem, withCadence: boolean): number {
   if (withCadence) t = cadence(p.tonic, !!p.minor, t);
   const beatTicks = p.beatTicks ?? TPB;
   const beat = (60 / p.tempo) * (beatTicks / TPB);
+  // 못갖춘마디: 준비박 한 마디 뒤, 다음 마디의 비는 박도 준비박으로 세고 여린박에서 선율이 들어온다
+  const lead = p.pickup ? p.beatsPerBar * beatTicks - p.pickup : 0;
+  const count = p.beatsPerBar + lead / beatTicks;
   const melodyBeats = Math.ceil(p.notes.reduce((a, n) => a + n.dur, 0) / beatTicks);
-  for (let b = 0; b < p.beatsPerBar + melodyBeats; b++) click(t + b * beat, b % p.beatsPerBar === 0, b < p.beatsPerBar ? 0.3 : 0.12);
-  t += p.beatsPerBar * beat;
+  for (let b = 0; b < count + melodyBeats; b++) click(t + b * beat, b % p.beatsPerBar === 0, b < count ? 0.3 : 0.12);
+  t += count * beat;
   return playNotes(p.notes, p.tempo, t - c.currentTime);
 }
 

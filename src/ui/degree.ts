@@ -3,7 +3,7 @@ import { passed } from '../engine/progress.ts';
 import { later, playCadence, playDegrees, playKey, stopAll } from '../audio/synth.ts';
 import { solfa } from '../engine/theory.ts';
 import { setCounting, touch } from '../activity.ts';
-import { minorTonic, record } from '../store.ts';
+import { keyRead, record } from '../store.ts';
 import { app, h, header } from './dom.ts';
 import type { ItemCtx } from './dictation.ts';
 
@@ -25,8 +25,8 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
   const playBtn = h('button', { class: 'play', onclick: () => (playing ? stop() : listen()) });
   const scaleBtn = h('button', { class: 'ghost', onclick: () => run(playCadence(it.tonic, it.minor)) }, '카덴츠 듣기');
   // 답·채점은 라 기반 이름으로 하고, 단조 도 기반 설정이면 보이는 글자만 바꾼다(기획 §M7.1)
-  const mt = minorTonic(it);
-  const show = (name: string) => (mt === undefined ? name : solfa(it.choiceMidis[it.choices.indexOf(name)], it.fifths, mt));
+  const k = keyRead(it);
+  const show = (name: string) => (k.minorTonic === undefined ? name : solfa(it.choiceMidis[it.choices.indexOf(name)], it.fifths, k));
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' });
   const foot = h('div', { class: 'degree-foot' });

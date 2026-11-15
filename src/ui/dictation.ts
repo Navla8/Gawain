@@ -6,7 +6,7 @@ import { passed } from '../engine/progress.ts';
 import { later, playCadence, playKey, playNotes, playProblem, stopAll } from '../audio/synth.ts';
 import { setCounting, touch } from '../activity.ts';
 import { renderStaff } from './staff.ts';
-import { minorTonic, record } from '../store.ts';
+import { keyRead, record } from '../store.ts';
 import { app, h, header, pct } from './dom.ts';
 import { pianoKeys } from './keyboard.ts';
 
@@ -121,13 +121,14 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
   }
 
   const len = barTicks(p);
+  const offset = p.pickup ? len - p.pickup : 0;
   function draw() {
     playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', !playing && plays <= 0);
     playBtn.classList.toggle('stop', playing);
     if (scaleBtn) scaleBtn.toggleAttribute('disabled', playing);
     const svg = renderStaff({
-      notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, cursor, selected, solfege: !rhythm, minorTonic: minorTonic(p), takadimi: true,
+      notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, cursor, selected, solfege: !rhythm, key: keyRead(p), takadimi: true,
       onTap: (i) => {
         selected = selected === i ? null : i;
         cursor = i + 1;
@@ -183,14 +184,14 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     record({
       at: new Date().toISOString(), problemId: p.id, answer, pitchScore, rhythmScore,
       plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
-      ...(ctx.skill && { skill: ctx.skill, miss: missTags(r, p.fifths, rhythm) }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }),
+      ...(ctx.skill && { skill: ctx.skill, miss: missTags(r, p.fifths, rhythm, p.minor) }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }),
     });
     ctx.onGraded?.(passed({ pitchScore, rhythmScore }));
     result(p, answer, r, ctx);
   }
 
   function submit() {
-    const bad = barProblems(notes, len, p.bars);
+    const bad = barProblems(notes, len, p.bars, offset);
     if (bad.length && !confirm(`${bad.join(', ')}마디의 박 수가 맞지 않아요. 그대로 제출할까요?`)) return;
     finish(notes, grade(p.notes, notes));
   }
@@ -220,7 +221,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     header(p.title, ctx.step),
     h('p', { class: 'info' }, rhythm
       ? `${meterText(p)} · ${p.bars}마디 · 리듬만 적어요`
-      : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디 · 첫 음 ${solfa(first, p.fifths, minorTonic(p))} ${noteName(first, p.fifths)}`),
+      : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디${p.pickup ? ' · 못갖춘마디(한 박)' : ''} · 첫 음 ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)}`),
     h('div', { class: 'listen' }, playBtn, scaleBtn),
     staffBox,
     status,
@@ -244,14 +245,17 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
   setCounting(true);
   const rhythm = !!ctx.rhythm;
   const len = barTicks(p);
-  const name = (m: number | null) => (m === null ? '쉼표' : rhythm ? '음표' : `${solfa(m, p.fifths, minorTonic(p))}(${noteName(m, p.fifths)})`);
+  const offset = p.pickup ? len - p.pickup : 0;
+  /** 마디 이름: 못갖춘마디가 있으면 그 마디가 0 */
+  const barLabel = (b: number) => (offset ? (b ? `${b}마디` : '못갖춘마디') : `${b + 1}마디`);
+  const name = (m: number | null) => (m === null ? '쉼표' : rhythm ? '음표' : `${solfa(m, p.fifths, keyRead(p))}(${noteName(m, p.fifths, p.minor)})`);
   const bySrc = (pick: (i: GradeItem) => GradeItem['truth']) => {
     const map = new Map<number, GradeItem>();
     for (const it of r.items) pick(it)?.src.forEach((s) => map.set(s, it));
     return map;
   };
   const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
-  const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, solfege: !rhythm, minorTonic: minorTonic(p), takadimi: true };
+  const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, solfege: !rhythm, key: keyRead(p), takadimi: true };
 
   const mine = renderStaff({
     ...staff, notes: answer,
@@ -263,10 +267,10 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
     color: (s) => (truthMap.get(s)?.verdict === 'ok' ? undefined : COLORS[truthMap.get(s)?.verdict ?? 'ok']),
   });
 
-  // 같은 마디만 정답 → 내 답 순서로 들려준다
+  // 같은 마디만 정답 → 내 답 순서로 들려준다(b는 그린 마디 순번)
   const barNotes = (ns: Note[], b: number): Note[] => {
     const out: Note[] = [];
-    let t = 0;
+    let t = offset;
     for (const n of ns) {
       const s = Math.max(t, b * len), e = Math.min(t + n.dur, (b + 1) * len);
       if (e > s) out.push({ midi: n.midi, dur: e - s });
@@ -282,7 +286,7 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
 
   const errors = r.items.filter((i) => i.verdict !== 'ok').map((i) => {
     const ev = (i.truth ?? i.answer)!;
-    const b = Math.min(p.bars - 1, Math.floor(ev.start / len));
+    const b = Math.min(p.bars - (offset ? 0 : 1), Math.floor((ev.start + offset) / len));
     const t = i.truth, a = i.answer;
     const text = i.verdict === 'missing' ? `빠진 음: ${name(t!.midi)} ${durName(t!.dur)}`
       : i.verdict === 'extra' ? `남는 음: ${name(a!.midi)} ${durName(a!.dur)}`
@@ -290,7 +294,7 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
         i.verdict !== 'rhythm' && `${name(a!.midi)} → ${name(t!.midi)}${i.octave ? ' (옥타브)' : ''}`,
         i.verdict !== 'pitch' && `${durName(a!.dur)} → ${durName(t!.dur)}`,
       ].filter(Boolean).join(' · ') + '여야 해요';
-    return h('li', {}, h('button', { class: 'mini', onclick: () => compare(b) }, `▶ ${b + 1}마디`), h('span', {}, text));
+    return h('li', {}, h('button', { class: 'mini', onclick: () => compare(b) }, `▶ ${barLabel(b)}`), h('span', {}, text));
   });
 
   const pitchScore = rhythm ? 1 : r.pitchScore;

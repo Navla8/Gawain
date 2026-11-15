@@ -16,13 +16,13 @@ export function toEvents(notes: Note[]): SoundEvent[] {
   return out;
 }
 
-/** 박 수가 맞지 않는 마디 번호(1부터): 모자라는 마디들, 또는 넘치면 마지막 마디.
- *  마디선을 넘는 음표는 악보에서 붙임줄로 나눠 그리므로 허용한다 */
-export function barProblems(notes: Note[], len: number, bars: number): number[] {
+/** 박 수가 맞지 않는 마디 번호(1부터, 못갖춘마디가 있으면 그 마디가 0): 모자라는 마디들, 또는 넘치면 마지막 마디.
+ *  마디선을 넘는 음표는 악보에서 붙임줄로 나눠 그리므로 허용한다. offset: 못갖춘마디만큼 앞에 비는 틱(마디 길이 − 못갖춘마디) */
+export function barProblems(notes: Note[], len: number, bars: number, offset = 0): number[] {
   const total = notes.reduce((t, n) => t + n.dur, 0);
   if (total > bars * len) return [bars];
   const bad: number[] = [];
-  for (let b = 0; b < bars; b++) if (total < (b + 1) * len) bad.push(b + 1);
+  for (let k = 0; k < bars + (offset ? 1 : 0); k++) if (total < Math.min((k + 1) * len - offset, bars * len)) bad.push(offset ? k : k + 1);
   return bad;
 }
 
@@ -64,10 +64,11 @@ function split(ticks: number): (typeof PIECES)[number][] {
   return best[ticks]?.parts.sort((a, b) => b[0] - a[0]) ?? [[ticks, 12, false, false]];
 }
 
-/** 악보에 그릴 글리프 목록. 마디선(len틱마다)에서 음표를 나누고 붙임줄로 잇는다 */
-export function toGlyphs(notes: Note[], len: number): Glyph[] {
+/** 악보에 그릴 글리프 목록. 마디선(len틱마다)에서 음표를 나누고 붙임줄로 잇는다.
+ *  offset: 못갖춘마디만큼 첫 음을 뒤로 민다(start는 민 위치) */
+export function toGlyphs(notes: Note[], len: number, offset = 0): Glyph[] {
   const out: Glyph[] = [];
-  let t = 0;
+  let t = offset;
   notes.forEach((n, src) => {
     const end = t + n.dur;
     let s = t;

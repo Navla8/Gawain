@@ -63,12 +63,12 @@ test('단조 계이름 도 기반(같은으뜸음조): 으뜸음이 도, 자연�
   const { solfa, solfege } = await import('../src/engine/theory.ts');
   // A 단조(조표 없음), 으뜸음 A = 57
   const a = [57, 59, 60, 62, 64, 65, 67, 68, 66, 69];
-  assert.deepEqual(a.map((m) => solfa(m, 0, 57)), ['도', '레', '미♭', '파', '솔', '라♭', '티♭', '티', '라', '도']);
-  assert.deepEqual(a.map((m) => solfege(m, 0, 57)), ['Do', 'Re', 'Me', 'Fa', 'Sol', 'Le', 'Te', 'Ti', 'La', 'Do']);
+  assert.deepEqual(a.map((m) => solfa(m, 0, { minorTonic: 57 })), ['도', '레', '미♭', '파', '솔', '라♭', '티♭', '티', '라', '도']);
+  assert.deepEqual(a.map((m) => solfege(m, 0, { minorTonic: 57 })), ['Do', 'Re', 'Me', 'Fa', 'Sol', 'Le', 'Te', 'Ti', 'La', 'Do']);
   // 라 기반은 그대로
   assert.deepEqual([57, 68].map((m) => solfa(m, 0)), ['라', '솔♯']);
   // C 단조(♭3개), 으뜸음 C
-  assert.deepEqual([60, 63, 71].map((m) => solfa(m, -3, 60)), ['도', '미♭', '티']);
+  assert.deepEqual([60, 63, 71].map((m) => solfa(m, -3, { minorTonic: 60 })), ['도', '미♭', '티']);
 });
 
 test('카덴츠: I–IV–V–I, 단조 V는 이끈음(솔♯) 장3화음', async () => {
@@ -76,4 +76,14 @@ test('카덴츠: I–IV–V–I, 단조 V는 이끈음(솔♯) 장3화음', asyn
   const pcs = (c: number[]) => [...new Set(c.map((x) => ((x % 12) + 12) % 12))].sort((a, b) => a - b);
   assert.deepEqual(cadenceChords(false).map(pcs), [[0, 4, 7], [0, 5, 9], [2, 7, 11], [0, 4, 7]]);
   assert.deepEqual(cadenceChords(true).map(pcs), [[0, 3, 7], [0, 5, 8], [2, 7, 11], [0, 3, 7]]);
+});
+
+test('♭조 단조의 올린 음(솔♯·파♯)은 ♮/♯로 적는다(♭조라고 라♭·솔♭으로 적지 않음)', async () => {
+  const { solfa, solfege, noteName } = await import('../src/engine/theory.ts');
+  // F 단조(♭4개): 이끈음 E♮ = 솔♯, 가락단음계 D♮ = 파♯
+  assert.deepEqual([64, 62].map((m) => noteName(m, -4, true)), ['E4', 'D4']);
+  assert.deepEqual([64, 62].map((m) => solfa(m, -4, { minor: true })), ['솔♯', '파♯']);
+  assert.deepEqual([64, 62].map((m) => solfege(m, -4, { minor: true })), ['Si', 'Fi']);
+  // 장조(♭조)의 반음은 그대로 ♭(F 장조의 D♭ = Le)
+  assert.equal(solfege(61, -1), 'Le');
 });

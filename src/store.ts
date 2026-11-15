@@ -47,8 +47,8 @@ export function setSettings(patch: Partial<Settings>) {
   try { localStorage.setItem(SETTINGS, JSON.stringify({ ...settings(), ...patch })); } catch { /* 저장 못 하는 환경 */ }
 }
 
-/** 단조 도 기반이면 계이름을 읽을 단조 으뜸음 MIDI. 아니면 undefined(조표 기준) */
-export const minorTonic = (p: { tonic: number; minor?: boolean }) => (p.minor && settings().minorDo ? p.tonic : undefined);
+/** 이 문제의 계이름을 읽는 법: 단조인지, 단조 도 기반 설정이면 그 으뜸음(theory.ts KeyRead) */
+export const keyRead = (p: { tonic: number; minor?: boolean }) => ({ minor: !!p.minor, ...(p.minor && settings().minorDo && { minorTonic: p.tonic }) });
 
 export function load(): Data {
   try {

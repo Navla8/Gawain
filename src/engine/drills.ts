@@ -153,8 +153,11 @@ export function rhythmItem(skillId: string, seed: number): Problem {
   const r = rng(seed);
   const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
   const compound = skillId === 'r3c';
-  const fresh = compound ? COMPOUND : CELLS[skillId];
-  const cells = compound ? COMPOUND : SIMPLE.slice(0, SIMPLE.indexOf(skillId) + 1).flatMap((k) => CELLS[k]);
+  // 붙임줄(r3d): 홑박자 조각을 모두 쓰고, 마디선을 넘는 붙임줄을 하나 단다(새 요소는 조각이 아니라 붙임줄)
+  const tie = skillId === 'r3d';
+  const unit = tie ? 'r3b' : skillId;
+  const fresh = compound ? COMPOUND : tie ? [] : CELLS[unit];
+  const cells = compound ? COMPOUND : SIMPLE.slice(0, SIMPLE.indexOf(unit) + 1).flatMap((k) => CELLS[k]);
   const beatsPerBar = compound ? 2 : pick([4, 4, 3]);
   const beatTicks = compound ? 18 : TPB;
   const len = beatsPerBar * beatTicks;
@@ -169,14 +172,17 @@ export function rhythmItem(skillId: string, seed: number): Problem {
         // 조각 길이는 모두 박의 배수라 늘 박 머리에 놓인다. 새 조각을 자주 고른다
         const fit = cells.filter((c) => c.reduce((a, x) => a + Math.abs(x), 0) <= left);
         const c = r() < 0.5 && fit.some((x) => fresh.includes(x)) ? pick(fit.filter((x) => fresh.includes(x))) : pick(fit);
-        if (fresh.includes(c)) usedFresh = true;
+        if (fresh.includes(c) || tie) usedFresh = true;
         out.push(...c);
         left -= c.reduce((a, x) => a + Math.abs(x), 0);
       }
     }
     // 새 조각이 한 번은 나오고, 쉼표로 시작하거나 끝나지 않게
-    if ((usedFresh && out[0] > 0 && out[out.length - 1] > 0) || tries > 200) {
-      const notes: Note[] = out.map((x) => ({ midi: x > 0 ? RHYTHM_PITCH : null, dur: Math.abs(x) }));
+    // 붙임줄: 첫 마디 끝 음과 둘째 마디 첫 음이 모두 음표여야 마디선을 넘어 이을 수 있다
+    const cut = out.findIndex((_, i) => out.slice(0, i + 1).reduce((a, x) => a + Math.abs(x), 0) === len);
+    const tieOk = !tie || (out[cut] > 0 && out[cut + 1] > 0);
+    if ((usedFresh && tieOk && out[0] > 0 && out[out.length - 1] > 0) || tries > 200) {
+      const notes: Note[] = out.map((x, i) => ({ midi: x > 0 ? RHYTHM_PITCH : null, dur: Math.abs(x), ...(tie && i === cut && { tie: true }) }));
       return {
         id: `rhy-${skillId}-${seed}`,
         title: `리듬 받아쓰기 · ${compound ? '6/8' : `${beatsPerBar}/4`}`,

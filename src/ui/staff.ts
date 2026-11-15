@@ -1,6 +1,6 @@
 import { TPB, timeSignature, type Note } from '../engine/types.ts';
 import { takadimi, toGlyphs, type Glyph } from '../engine/score.ts';
-import { spell, solfege, keySignatureSteps, keyAccidental, accidentalSymbol } from '../engine/theory.ts';
+import { spell, solfege, keySignatureSteps, keyAccidental, accidentalSymbol, type KeyRead } from '../engine/theory.ts';
 
 // 높은음자리표 한 줄 악보를 SVG로 그린다. 음표마다 색·라벨·탭 선택을 직접 제어하기 위해 라이브러리를 쓰지 않는다.
 const S = 10; // 줄 간격
@@ -18,14 +18,16 @@ export interface StaffOptions {
   /** 한 박의 틱 수(겹박자 18). 없으면 12 */
   beatTicks?: number;
   bars: number;
+  /** 못갖춘마디 길이(틱). 첫 마디가 이만큼만 있다 */
+  pickup?: number;
   /** Note 인덱스별 색 */
   color?: (src: number) => string | undefined;
   /** Note 인덱스별 아래 라벨 */
   label?: (src: number) => string | undefined;
   /** 음표 아래에 솔페지 음절을 적는다 */
   solfege?: boolean;
-  /** 단조 도 기반으로 읽을 때 단조 으뜸음 MIDI */
-  minorTonic?: number;
+  /** 단조(올린 음 표기)와 단조 도 기반으로 읽을 때의 으뜸음 */
+  key?: KeyRead;
   /** 맨 아래에 타카디미 리듬 음절을 적는다(쉼표는 괄호) */
   takadimi?: boolean;
   /** 이 인덱스 앞에 커서를 그린다 (notes.length면 끝) */
@@ -46,7 +48,9 @@ const width = (g: Glyph) => Math.max(24, g.ticks * 2.2);
 export function renderStaff(o: StaffOptions): SVGSVGElement {
   const beatTicks = o.beatTicks ?? TPB;
   const len = o.beatsPerBar * beatTicks;
-  const glyphs = toGlyphs(o.notes, len);
+  const offset = o.pickup ? len - o.pickup : 0;
+  const drawnBars = o.bars + (offset ? 1 : 0);
+  const glyphs = toGlyphs(o.notes, len, offset);
   const solfegeY = HEIGHT + (o.solfege && o.label ? SOLFEGE_ROW : 0) - 6;
   const height = solfegeY + 6 + (o.takadimi ? TAKADIMI_ROW : 0);
   const svg = el('svg', { class: 'staff', height });
@@ -94,7 +98,7 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     let hx = x + 10;
     const held = i > 0 && glyphs[i - 1].tie && glyphs[i - 1].midi === g.midi; // 붙임줄로 이어져 다시 소리 내지 않는 음
     if (g.midi !== null) {
-      const sp = spell(g.midi, o.fifths);
+      const sp = spell(g.midi, o.fifths, o.key?.minor);
       const cur = accState.get(sp.step) ?? keyAccidental(sp.letter, o.fifths);
       if (cur !== sp.acc && !held) {
         const t = el('text', { x: hx - 4, y: y(sp.step) + 5, 'font-size': 15, stroke: 'none' }, grp);
@@ -122,7 +126,7 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
     }
     if (o.solfege && g.midi !== null && !held) {
       const t = el('text', { x: hx, y: solfegeY, 'font-size': 13, 'text-anchor': 'middle', stroke: 'none', fill: 'var(--muted)', class: 'solfege' }, grp);
-      t.textContent = solfege(g.midi, o.fifths, o.minorTonic);
+      t.textContent = solfege(g.midi, o.fifths, o.key);
     }
     if (o.takadimi && !held) {
       const syl = takadimi(g.start, beatTicks);
@@ -138,7 +142,7 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
   // 붙임줄
   glyphs.forEach((g, i) => {
     if (!g.tie || !glyphs[i + 1] || g.midi === null) return;
-    const st = spell(g.midi, o.fifths).step;
+    const st = spell(g.midi, o.fifths, o.key?.minor).step;
     const up = st >= 34;
     const yy = y(st) + (up ? -7 : 7);
     const x1 = positions[i] + 5, x2 = positions[i + 1] - 5;
@@ -165,12 +169,12 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
   let started = 0;
   if (total > 0) {
     started = bar + 1;
-    x = endX + (total % len ? 30 : 0);
-    closeBar(started >= o.bars);
+    x = endX + ((total + offset) % len ? 30 : 0);
+    closeBar(started >= drawnBars);
   }
-  for (let k = started; k < o.bars; k++) {
-    x += 70;
-    closeBar(k === o.bars - 1);
+  for (let k = started; k < drawnBars; k++) {
+    x += offset && k === 0 ? 30 : 70;
+    closeBar(k === drawnBars - 1);
   }
   x += 12;
 

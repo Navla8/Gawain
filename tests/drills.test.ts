@@ -49,6 +49,13 @@ test('리듬 받아쓰기: 2마디를 꽉 채우고, 그 단원의 새 리듬이
     if (s.id === 'r3a') assert.ok(d.includes(3), `${seed}: 16분음표`);
     if (s.id === 'r2b') assert.ok(has(d, [18, 6]), `${seed}: 점4분+8분`);
     if (s.id === 'r3c') assert.equal(p.beatTicks, 18);
+    // 붙임줄: 마디선을 넘어 같은 음을 잇는 붙임줄이 한 번은 있다
+    if (s.id === 'r3d') {
+      const len = barTicks(p);
+      let t = 0, cross = false;
+      p.notes.forEach((n, i) => { t += n.dur; if (n.tie && t % len === 0 && p.notes[i + 1]?.midi === n.midi) cross = true; });
+      assert.ok(cross, `${seed}: 마디선 붙임줄`);
+    } else assert.ok(p.notes.every((n) => !n.tie), `${s.id} ${seed}: 붙임줄 없음`);
   }
   assert.ok(rhythmItem('r1', 3).notes.every((n) => [12, 24, 48].includes(n.dur)));
 });

@@ -49,3 +49,13 @@ test('타카디미: 홑박자 ta ka di mi, 셋잇단 ta ki da, 겹박자 ta (va)
   assert.deepEqual([0, 6, 12, 3, 9, 15, 18].map((t) => takadimi(t, 18)), ['ta', 'ki', 'da', 'va', 'di', 'ma', 'ta']);
   assert.equal(takadimi(5, 12), '·'); // 박 안 어디에도 맞지 않는 위치
 });
+
+test('못갖춘마디: 첫 마디가 짧아 offset만큼 밀려 그리고, 박 수 검사도 밀린 마디선으로 한다', async () => {
+  const { toGlyphs, barProblems } = await import('../src/engine/score.ts');
+  // 4/4, 한 박 못갖춘마디(offset 36): 4분 | 2분 2분 | … 
+  const ns = [{ midi: 67, dur: 12 }, { midi: 72, dur: 24 }, { midi: 71, dur: 24 }];
+  const g = toGlyphs(ns, 48, 36);
+  assert.deepEqual(g.map((x) => [x.bar, x.start]), [[0, 36], [1, 48], [1, 72]]);
+  assert.deepEqual(barProblems(ns, 48, 2, 36), [2]); // 둘째 마디(첫 온마디)까지 채움, 마지막 마디(3박) 모자람
+  assert.deepEqual(barProblems([...ns, { midi: 72, dur: 36 }], 48, 2, 36), []);
+});

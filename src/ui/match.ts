@@ -117,7 +117,7 @@ function show(run: Run, slot: Slot, step: [number, number]) {
   const melodyAt = (x: number) => melodyItem(id, x, s.name);
   if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weak), ctx);
   else if (s.track === 'rhythm') solve(fixed !== undefined ? rhythmAt(fixed) : bestOf(rhythmAt, (it) => contentTags(it.notes, it.fifths, true), seed(), weak), { ...ctx, rhythm: true });
-  else solve(fixed !== undefined ? melodyAt(fixed) : bestOf(melodyAt, (it) => contentTags(it.notes, it.fifths), seed(), weak), ctx);
+  else solve(fixed !== undefined ? melodyAt(fixed) : bestOf(melodyAt, (it) => contentTags(it.notes, it.fifths, false, it.minor), seed(), weak), ctx);
 }
 
 const ROLE: Record<string, string> = { learn: '연습', review: '점검', check: '확인', placement: '배치', retry: '오답' };

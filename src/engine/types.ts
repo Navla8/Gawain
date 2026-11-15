@@ -20,7 +20,10 @@ export interface Problem {
   beatsPerBar: number;
   /** 한 박의 틱 수. 홑박자는 12(4분음표), 겹박자(6/8)는 18(점4분음표). 없으면 12 */
   beatTicks?: number;
+  /** 마디 수(못갖춘마디가 있으면 첫 마디와 마지막 마디를 합쳐 한 마디로 센다) */
   bars: number;
+  /** 못갖춘마디의 길이(틱). 첫 마디가 이만큼만 있고 마지막 마디가 이만큼 짧다 */
+  pickup?: number;
   /** 4분음표 기준 BPM */
   tempo: number;
   notes: Note[];
