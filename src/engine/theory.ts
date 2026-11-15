@@ -38,14 +38,21 @@ export function noteName(midi: number, fifths: number): string {
   return LETTERS[s.letter] + ACC[s.acc] + s.octave;
 }
 
-/** 상대 계이름: 도 레 미 파 솔 라 티. 도는 조표로 정하므로 단조 으뜸음은 '라'(기획 §2) */
-export function solfa(midi: number, fifths: number): string {
+// 단조 도 기반(같은으뜸음조, 기획 §M7.1): 단조 으뜸음을 도로 읽는다. 반음은 단조에서 흔한 쪽(미♭·라♭·티♭, 가락단음계 라·티)
+const DO_MINOR_SOLFA = ['도', '레♭', '레', '미♭', '미', '파', '파♯', '솔', '라♭', '라', '티♭', '티'];
+const DO_MINOR_SOLFEGE = ['Do', 'Ra', 'Re', 'Me', 'Mi', 'Fa', 'Fi', 'Sol', 'Le', 'La', 'Te', 'Ti'];
+
+/** 상대 계이름: 도 레 미 파 솔 라 티. 도는 조표로 정하므로 단조 으뜸음은 '라'(기획 §2).
+ *  minorTonic(단조 으뜸음 MIDI)을 주면 단조 도 기반으로 읽는다 */
+export function solfa(midi: number, fifths: number, minorTonic?: number): string {
+  if (minorTonic !== undefined) return DO_MINOR_SOLFA[mod(midi - minorTonic, 12)];
   const [deg, alt] = degreeOf(midi - fifths * 7, fifths < 0);
   return SOLFA[deg] + ACC[alt];
 }
 
 /** 솔페지 음절(이동도). 도는 조표로 정하므로 단조 으뜸음은 La, 반음은 spell()의 표기를 따른다 */
-export function solfege(midi: number, fifths: number): string {
+export function solfege(midi: number, fifths: number, minorTonic?: number): string {
+  if (minorTonic !== undefined) return DO_MINOR_SOLFEGE[mod(midi - minorTonic, 12)];
   const [deg, alt] = degreeOf(midi - fifths * 7, fifths < 0);
   return (alt > 0 ? SOLFEGE_SHARP : alt < 0 ? SOLFEGE_FLAT : SOLFEGE)[deg];
 }

@@ -1,5 +1,5 @@
 import { TPB, timeSignature, type Note } from '../engine/types.ts';
-import { toGlyphs, type Glyph } from '../engine/score.ts';
+import { takadimi, toGlyphs, type Glyph } from '../engine/score.ts';
 import { spell, solfege, keySignatureSteps, keyAccidental, accidentalSymbol } from '../engine/theory.ts';
 
 // 높은음자리표 한 줄 악보를 SVG로 그린다. 음표마다 색·라벨·탭 선택을 직접 제어하기 위해 라이브러리를 쓰지 않는다.
@@ -7,6 +7,7 @@ const S = 10; // 줄 간격
 const TOP = 40;
 const HEIGHT = 158;
 const SOLFEGE_ROW = 14; // 표식 글자 아래에 솔페지 줄을 둘 때 늘어나는 높이
+const TAKADIMI_ROW = 14; // 맨 아래 타카디미 줄
 const y = (step: number) => TOP + (38 - step) * (S / 2);
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -23,6 +24,10 @@ export interface StaffOptions {
   label?: (src: number) => string | undefined;
   /** 음표 아래에 솔페지 음절을 적는다 */
   solfege?: boolean;
+  /** 단조 도 기반으로 읽을 때 단조 으뜸음 MIDI */
+  minorTonic?: number;
+  /** 맨 아래에 타카디미 리듬 음절을 적는다(쉼표는 괄호) */
+  takadimi?: boolean;
   /** 이 인덱스 앞에 커서를 그린다 (notes.length면 끝) */
   cursor?: number;
   selected?: number | null;
@@ -42,7 +47,8 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
   const beatTicks = o.beatTicks ?? TPB;
   const len = o.beatsPerBar * beatTicks;
   const glyphs = toGlyphs(o.notes, len);
-  const height = HEIGHT + (o.solfege && o.label ? SOLFEGE_ROW : 0);
+  const solfegeY = HEIGHT + (o.solfege && o.label ? SOLFEGE_ROW : 0) - 6;
+  const height = solfegeY + 6 + (o.takadimi ? TAKADIMI_ROW : 0);
   const svg = el('svg', { class: 'staff', height });
   const ink = 'var(--text)';
 
@@ -115,8 +121,13 @@ export function renderStaff(o: StaffOptions): SVGSVGElement {
       t.textContent = lab;
     }
     if (o.solfege && g.midi !== null && !held) {
-      const t = el('text', { x: hx, y: height - 6, 'font-size': 13, 'text-anchor': 'middle', stroke: 'none', fill: 'var(--muted)', class: 'solfege' }, grp);
-      t.textContent = solfege(g.midi, o.fifths);
+      const t = el('text', { x: hx, y: solfegeY, 'font-size': 13, 'text-anchor': 'middle', stroke: 'none', fill: 'var(--muted)', class: 'solfege' }, grp);
+      t.textContent = solfege(g.midi, o.fifths, o.minorTonic);
+    }
+    if (o.takadimi && !held) {
+      const syl = takadimi(g.start, beatTicks);
+      const t = el('text', { x: hx, y: height - 6, 'font-size': 11, 'text-anchor': 'middle', stroke: 'none', fill: 'var(--muted)', class: 'takadimi' }, grp);
+      t.textContent = g.midi === null ? `(${syl})` : syl;
     }
     x = hx + width(g) - 10 + (g.dotted ? 4 : 0);
   });

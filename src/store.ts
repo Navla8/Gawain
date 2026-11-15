@@ -28,6 +28,28 @@ export interface Data {
   seconds: Record<string, number>;
 }
 
+/** 화면 설정(기기별, 기록과 따로 둔다) */
+export interface Settings {
+  /** 단조 계이름을 도 기반(같은으뜸음조)으로 읽는다. 기본은 라 기반(기획 §M7.1) */
+  minorDo: boolean;
+}
+const SETTINGS = 'gawain.settings';
+
+export function settings(): Settings {
+  try {
+    return { minorDo: false, ...JSON.parse(localStorage.getItem(SETTINGS) ?? '{}') };
+  } catch {
+    return { minorDo: false };
+  }
+}
+
+export function setSettings(patch: Partial<Settings>) {
+  try { localStorage.setItem(SETTINGS, JSON.stringify({ ...settings(), ...patch })); } catch { /* 저장 못 하는 환경 */ }
+}
+
+/** 단조 도 기반이면 계이름을 읽을 단조 으뜸음 MIDI. 아니면 undefined(조표 기준) */
+export const minorTonic = (p: { tonic: number; minor?: boolean }) => (p.minor && settings().minorDo ? p.tonic : undefined);
+
 export function load(): Data {
   try {
     const d = JSON.parse(localStorage.getItem(KEY) ?? '');

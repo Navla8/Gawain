@@ -58,3 +58,22 @@ test('조표 위치', () => {
   assert.deepEqual(keySignatureSteps(2).map((s) => s.step), [38, 35]); // F5, C5
   assert.equal(keySignatureSteps(-3).length, 3);
 });
+
+test('단조 계이름 도 기반(같은으뜸음조): 으뜸음이 도, 자연단음계 도 레 미♭ 파 솔 라♭ 티♭, 이끈음 티', async () => {
+  const { solfa, solfege } = await import('../src/engine/theory.ts');
+  // A 단조(조표 없음), 으뜸음 A = 57
+  const a = [57, 59, 60, 62, 64, 65, 67, 68, 66, 69];
+  assert.deepEqual(a.map((m) => solfa(m, 0, 57)), ['도', '레', '미♭', '파', '솔', '라♭', '티♭', '티', '라', '도']);
+  assert.deepEqual(a.map((m) => solfege(m, 0, 57)), ['Do', 'Re', 'Me', 'Fa', 'Sol', 'Le', 'Te', 'Ti', 'La', 'Do']);
+  // 라 기반은 그대로
+  assert.deepEqual([57, 68].map((m) => solfa(m, 0)), ['라', '솔♯']);
+  // C 단조(♭3개), 으뜸음 C
+  assert.deepEqual([60, 63, 71].map((m) => solfa(m, -3, 60)), ['도', '미♭', '티']);
+});
+
+test('카덴츠: I–IV–V–I, 단조 V는 이끈음(솔♯) 장3화음', async () => {
+  const { cadenceChords } = await import('../src/audio/synth.ts');
+  const pcs = (c: number[]) => [...new Set(c.map((x) => ((x % 12) + 12) % 12))].sort((a, b) => a - b);
+  assert.deepEqual(cadenceChords(false).map(pcs), [[0, 4, 7], [0, 5, 9], [2, 7, 11], [0, 4, 7]]);
+  assert.deepEqual(cadenceChords(true).map(pcs), [[0, 3, 7], [0, 5, 8], [2, 7, 11], [0, 3, 7]]);
+});

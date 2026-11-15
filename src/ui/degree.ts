@@ -1,8 +1,9 @@
 import type { DegreeItem } from '../engine/drills.ts';
 import { passed } from '../engine/progress.ts';
-import { later, playDegrees, playKey, playScale, stopAll } from '../audio/synth.ts';
+import { later, playCadence, playDegrees, playKey, stopAll } from '../audio/synth.ts';
+import { solfa } from '../engine/theory.ts';
 import { setCounting, touch } from '../activity.ts';
-import { record } from '../store.ts';
+import { minorTonic, record } from '../store.ts';
 import { app, h, header } from './dom.ts';
 import type { ItemCtx } from './dictation.ts';
 
@@ -22,16 +23,19 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
   let done = false;
 
   const playBtn = h('button', { class: 'play', onclick: () => (playing ? stop() : listen()) });
-  const scaleBtn = h('button', { class: 'ghost', onclick: () => run(playScale(it.tonic, it.minor)) }, '음계 듣기');
+  const scaleBtn = h('button', { class: 'ghost', onclick: () => run(playCadence(it.tonic, it.minor)) }, '카덴츠 듣기');
+  // 답·채점은 라 기반 이름으로 하고, 단조 도 기반 설정이면 보이는 글자만 바꾼다(기획 §M7.1)
+  const mt = minorTonic(it);
+  const show = (name: string) => (mt === undefined ? name : solfa(it.choiceMidis[it.choices.indexOf(name)], it.fifths, mt));
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' });
   const foot = h('div', { class: 'degree-foot' });
 
   function listen() {
     if (plays <= 0) return;
-    const withScale = plays === maxPlays;
+    const withCadence = plays === maxPlays;
     plays--;
-    run(playDegrees(it.midis, it.tonic, it.minor, withScale));
+    run(playDegrees(it.midis, it.tonic, it.minor, withCadence));
   }
   function run(sec: number) {
     playing = true;
@@ -80,11 +84,11 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
       const a = answer[i];
       const cls = done ? (a === truth ? 'slot ok' : 'slot bad') : i === answer.length ? 'slot cur' : 'slot';
       return h('div', { class: cls },
-        h('b', {}, a ?? '·'),
-        done && a !== truth ? h('small', {}, truth) : done ? h('small', {}, '✓') : '',
+        h('b', {}, a === undefined ? '·' : show(a)),
+        done && a !== truth ? h('small', {}, show(truth)) : done ? h('small', {}, '✓') : '',
       );
     }));
-    pad.replaceChildren(...it.choices.map((name) => h('button', { class: 'deg', onclick: () => choose(name) }, name)));
+    pad.replaceChildren(...it.choices.map((name) => h('button', { class: 'deg', onclick: () => choose(name) }, show(name))));
 
     const right = it.names.filter((n, i) => answer[i] === n).length;
     if (done) {
@@ -93,7 +97,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
         h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '맞았어요' : `${it.names.length}음 중 ${right}음`, h('span', {}, ' · 계이름을 누르면 그 음이 나요')),
         h('div', { class: 'actions' },
           h('button', { class: 'half', onclick: () => { stopAll(); playDegrees(it.midis, it.tonic, it.minor, false); } }, '정답 듣기'),
-          h('button', { class: 'half', onclick: () => run(playScale(it.tonic, it.minor)) }, '음계 듣기'),
+          h('button', { class: 'half', onclick: () => run(playCadence(it.tonic, it.minor)) }, '카덴츠 듣기'),
           h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
         ),
       );
@@ -107,7 +111,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
 
   app.replaceChildren(
     header(it.title, ctx.step),
-    h('p', { class: 'info' }, `${it.names.length}음 · 첫 재생에 음계${it.minor ? '(라~라)' : '(도~도)'}를 먼저 들려줘요`),
+    h('p', { class: 'info' }, `${it.names.length}음 · 첫 재생에 카덴츠(${it.minor ? 'i–iv–V–i' : 'I–IV–V–I'})를 먼저 들려줘요`),
     h('div', { class: 'listen' }, playBtn, scaleBtn),
     slots,
     pad,

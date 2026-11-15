@@ -42,3 +42,10 @@ test('6/8 (마디 36틱): 마디선에서 나누고 점4분음표로 적는다',
   assert.deepEqual(g.map((x) => [x.value, x.dotted, x.bar]), [[12, true, 0], [6, false, 0], [6, false, 0], [6, false, 0], [24, true, 1]]);
   assert.deepEqual(barProblems([n(60, 36), n(62, 36)], 36, 2), []);
 });
+
+test('타카디미: 홑박자 ta ka di mi, 셋잇단 ta ki da, 겹박자 ta (va) ki (di) da (ma)', async () => {
+  const { takadimi } = await import('../src/engine/score.ts');
+  assert.deepEqual([0, 3, 6, 9, 12, 4, 8].map((t) => takadimi(t, 12)), ['ta', 'ka', 'di', 'mi', 'ta', 'ki', 'da']);
+  assert.deepEqual([0, 6, 12, 3, 9, 15, 18].map((t) => takadimi(t, 18)), ['ta', 'ki', 'da', 'va', 'di', 'ma', 'ta']);
+  assert.equal(takadimi(5, 12), '·'); // 박 안 어디에도 맞지 않는 위치
+});

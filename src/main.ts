@@ -7,7 +7,7 @@ import { computeProgress, isDue } from './engine/progress.ts';
 import { EST } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
-import { load, merge } from './store.ts';
+import { load, merge, setSettings, settings } from './store.ts';
 import { app, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
 import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
@@ -74,6 +74,7 @@ function home() {
     })(),
     card('피아노 룸', '들은 멜로디를 바로 쳐 봐요 · 채점·기록 없음', pianoRoom),
     h('footer', { class: 'backup' },
+      h('button', { onclick: () => { setSettings({ minorDo: !settings().minorDo }); home(); } }, `단조 계이름 · ${settings().minorDo ? '도 기반' : '라 기반'}`),
       h('button', { onclick: exportRecords }, '기록 내보내기'),
       h('button', { onclick: importRecords }, '기록 불러오기'),
     ),

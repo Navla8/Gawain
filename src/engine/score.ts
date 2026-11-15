@@ -83,3 +83,14 @@ export function toGlyphs(notes: Note[], len: number): Glyph[] {
   });
   return out;
 }
+
+// 타카디미 리듬 음절(기획 §M7.1): 박 안의 위치로 정한다. 홑박자는 ta ka di mi(셋잇단 ta ki da, 여섯잇단 ta va ki di da ma), 겹박자는 ta va ki di da ma
+const TAKADIMI: Record<number, Record<number, string>> = {
+  12: { 0: 'ta', 3: 'ka', 6: 'di', 9: 'mi', 4: 'ki', 8: 'da', 2: 'va', 10: 'ma' },
+  18: { 0: 'ta', 3: 'va', 6: 'ki', 9: 'di', 12: 'da', 15: 'ma' },
+};
+
+/** onset(틱) 자리의 타카디미 음절. 박 안 어디에도 맞지 않으면 '·' */
+export function takadimi(onset: number, beatTicks: number): string {
+  return TAKADIMI[beatTicks]?.[onset % beatTicks] ?? '·';
+}

@@ -3,10 +3,10 @@ import { durName, grade, missTags, type GradeItem, type GradeResult } from '../e
 import { barProblems } from '../engine/score.ts';
 import { noteName, solfa, keyName } from '../engine/theory.ts';
 import { passed } from '../engine/progress.ts';
-import { later, playKey, playNotes, playProblem, playScale, stopAll } from '../audio/synth.ts';
+import { later, playCadence, playKey, playNotes, playProblem, stopAll } from '../audio/synth.ts';
 import { setCounting, touch } from '../activity.ts';
 import { renderStaff } from './staff.ts';
-import { record } from '../store.ts';
+import { minorTonic, record } from '../store.ts';
 import { app, h, header, pct } from './dom.ts';
 import { pianoKeys } from './keyboard.ts';
 
@@ -84,15 +84,15 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
   const status = h('p', { class: 'status' });
   let playing = false;
   const playBtn = h('button', { class: 'play', onclick: () => (playing ? stop() : listen()) });
-  const scaleBtn = rhythm ? '' : h('button', { class: 'ghost', onclick: () => run(playScale(p.tonic, p.minor)) }, '음계 듣기');
+  const scaleBtn = rhythm ? '' : h('button', { class: 'ghost', onclick: () => run(playCadence(p.tonic, p.minor)) }, '카덴츠 듣기');
   const palette = h('div', { class: 'palette' });
 
-  /** 준비박 → 메트로놈과 선율. 첫 재생만 음계를 먼저 친다(리듬은 음계 없음) */
+  /** 준비박 → 메트로놈과 선율. 첫 재생만 카덴츠를 먼저 친다(리듬은 카덴츠 없음) */
   function listen() {
     if (plays <= 0) return;
-    const withScale = plays === maxPlays && !rhythm;
+    const withCadence = plays === maxPlays && !rhythm;
     plays--;
-    run(playProblem(p, withScale));
+    run(playProblem(p, withCadence));
   }
 
   /** sec초 동안 재생 중 상태로 둔다 */
@@ -127,7 +127,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     playBtn.classList.toggle('stop', playing);
     if (scaleBtn) scaleBtn.toggleAttribute('disabled', playing);
     const svg = renderStaff({
-      notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, cursor, selected, solfege: !rhythm,
+      notes, fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, cursor, selected, solfege: !rhythm, minorTonic: minorTonic(p), takadimi: true,
       onTap: (i) => {
         selected = selected === i ? null : i;
         cursor = i + 1;
@@ -220,7 +220,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = []) {
     header(p.title, ctx.step),
     h('p', { class: 'info' }, rhythm
       ? `${meterText(p)} · ${p.bars}마디 · 리듬만 적어요`
-      : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디 · 첫 음 ${solfa(first, p.fifths)} ${noteName(first, p.fifths)}`),
+      : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디 · 첫 음 ${solfa(first, p.fifths, minorTonic(p))} ${noteName(first, p.fifths)}`),
     h('div', { class: 'listen' }, playBtn, scaleBtn),
     staffBox,
     status,
@@ -244,14 +244,14 @@ function result(p: Problem, answer: Note[], r: GradeResult, ctx: ItemCtx) {
   setCounting(true);
   const rhythm = !!ctx.rhythm;
   const len = barTicks(p);
-  const name = (m: number | null) => (m === null ? '쉼표' : rhythm ? '음표' : `${solfa(m, p.fifths)}(${noteName(m, p.fifths)})`);
+  const name = (m: number | null) => (m === null ? '쉼표' : rhythm ? '음표' : `${solfa(m, p.fifths, minorTonic(p))}(${noteName(m, p.fifths)})`);
   const bySrc = (pick: (i: GradeItem) => GradeItem['truth']) => {
     const map = new Map<number, GradeItem>();
     for (const it of r.items) pick(it)?.src.forEach((s) => map.set(s, it));
     return map;
   };
   const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
-  const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, solfege: !rhythm };
+  const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, solfege: !rhythm, minorTonic: minorTonic(p), takadimi: true };
 
   const mine = renderStaff({
     ...staff, notes: answer,

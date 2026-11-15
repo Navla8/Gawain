@@ -99,33 +99,36 @@ export function playNotes(notes: Note[], tempo: number, delay = 0.05): number {
   return tied - c.currentTime;
 }
 
-const MAJOR = [0, 2, 4, 5, 7, 9, 11, 12];
-const MINOR = [0, 2, 3, 5, 7, 8, 10, 12]; // 라~라 (자연단음계)
+/** 카덴츠 I–IV–V–I(단조 i–iv–V–i, V는 이끈음 솔♯)의 화음: 으뜸음에서 몇 반음. 첫 음은 베이스(기획 §M7.1) */
+export function cadenceChords(minor: boolean): number[][] {
+  const third = minor ? 3 : 4, sixth = minor ? 8 : 9;
+  return [[-12, 0, third, 7], [-7, 0, 5, sixth], [-5, -1, 2, 7], [-12, 0, third, 7]];
+}
 
-/** 음계 도~도(단조는 라~라)를 at부터 치고, 끝나는 시각을 돌려준다 */
-function scale(tonic: number, minor: boolean, at: number): number {
+/** 카덴츠를 at부터 치고, 끝나는 시각을 돌려준다. 대학 청음 시험처럼 조성을 화음 진행으로 세운다 */
+function cadence(tonic: number, minor: boolean, at: number): number {
   let t = at;
-  (minor ? MINOR : MAJOR).forEach((step, i, all) => {
+  cadenceChords(minor).forEach((chord, i, all) => {
     const last = i === all.length - 1;
-    piano(tonic + step, t, last ? 0.7 : 0.3, 0.6);
-    t += last ? 1.1 : 0.32;
+    for (const x of chord) piano(tonic + x, t, last ? 1.0 : 0.55, 0.5);
+    t += last ? 1.4 : 0.7;
   });
   return t;
 }
 
-/** 음계만 친다. 전체 길이(초)를 돌려준다 */
-export function playScale(tonic: number, minor = false): number {
+/** 카덴츠만 친다. 전체 길이(초)를 돌려준다 */
+export function playCadence(tonic: number, minor = false): number {
   const c = unlockAudio();
   stopAll();
-  return scale(tonic, minor, c.currentTime + 0.05) - c.currentTime;
+  return cadence(tonic, minor, c.currentTime + 0.05) - c.currentTime;
 }
 
-/** 조성감 세우기: (첫 재생이면 음계) → 준비박 1마디 → 메트로놈과 함께 선율. 겹박자는 점4분음표마다 친다. 전체 길이(초)를 돌려준다 */
-export function playProblem(p: Problem, withScale: boolean): number {
+/** 조성감 세우기: (첫 재생이면 카덴츠) → 준비박 1마디 → 메트로놈과 함께 선율. 겹박자는 점4분음표마다 친다. 전체 길이(초)를 돌려준다 */
+export function playProblem(p: Problem, withCadence: boolean): number {
   const c = unlockAudio();
   stopAll();
   let t = c.currentTime + 0.05;
-  if (withScale) t = scale(p.tonic, !!p.minor, t);
+  if (withCadence) t = cadence(p.tonic, !!p.minor, t);
   const beatTicks = p.beatTicks ?? TPB;
   const beat = (60 / p.tempo) * (beatTicks / TPB);
   const melodyBeats = Math.ceil(p.notes.reduce((a, n) => a + n.dur, 0) / beatTicks);
@@ -134,11 +137,11 @@ export function playProblem(p: Problem, withScale: boolean): number {
   return playNotes(p.notes, p.tempo, t - c.currentTime);
 }
 
-/** 계이름 듣기: (처음이면 음계) → 잠깐 쉬고 → 음들을 4분음표로. 전체 길이(초)를 돌려준다 */
-export function playDegrees(midis: number[], tonic: number, minor: boolean, withScale: boolean): number {
+/** 계이름 듣기: (처음이면 카덴츠) → 잠깐 쉬고 → 음들을 4분음표로. 전체 길이(초)를 돌려준다 */
+export function playDegrees(midis: number[], tonic: number, minor: boolean, withCadence: boolean): number {
   const c = unlockAudio();
   stopAll();
   let t = c.currentTime + 0.05;
-  if (withScale) t = scale(tonic, minor, t) + 0.5;
+  if (withCadence) t = cadence(tonic, minor, t) + 0.5;
   return playNotes(midis.map((midi) => ({ midi, dur: TPB })), 72, t - c.currentTime);
 }
