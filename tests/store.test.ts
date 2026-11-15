@@ -34,3 +34,11 @@ test('저장이 실패하면 한 번 알린다(M2)', () => {
   assert.equal(load().attempts.length, 1);
   full = false;
 });
+
+test('기록을 합친 뒤 시도는 시간순이다(M7)', async () => {
+  const { merge } = await import('../src/store.ts');
+  mem.delete('gawain.v1');
+  record(att(5));
+  merge({ attempts: [att(1), att(9)] });
+  assert.deepEqual(load().attempts.map((a) => a.problemId), ['p1', 'p5', 'p9']);
+});

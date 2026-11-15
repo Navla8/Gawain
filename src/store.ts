@@ -113,6 +113,7 @@ export function merge(incoming: Partial<Data>): number {
       seen.add(a.at + a.problemId);
       added++;
     }
+    d.attempts.sort((x, y) => x.at.localeCompare(y.at)); // 다른 기기의 옛 기록이 '최근'으로 집계되지 않게
     for (const [k, v] of Object.entries(incoming.seconds ?? {})) if (typeof v === 'number') d.seconds[k] = Math.max(d.seconds[k] ?? 0, v);
   });
   return added;
