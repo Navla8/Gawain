@@ -167,7 +167,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
     const used = notes.reduce((t, n) => t + n.dur, 0);
     const beat = p.beatTicks ?? TPB;
     status.textContent = (two ? (v ? '아래 성부 · ' : '위 성부 · ') : '') + (selected !== null
-      ? `${selected + 1}번째 음 선택됨 · ${rhythm ? '' : '건반·'}길이를 누르면 바뀌어요`
+      ? `${selected + 1}번째 음 선택됨 · ${rhythm ? '' : '건반·'}길이를 눌러 수정하세요`
       : used >= p.bars * len
         ? (used > p.bars * len ? `${p.bars}마디를 넘었어요` : `${p.bars}마디를 다 적었어요`)
         : `${Math.floor(used / len) + 1}마디 ${+((used % len) / beat + 1).toFixed(2)}박째`);
@@ -229,7 +229,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
     voices[v] = notes;
     const mine = truths.map((_, i) => voices[i]);
     const bad = mine.map((ns, i) => barProblems(ns, len, p.bars, offset).map((b) => (two ? (i ? '아래 ' : '위 ') : '') + b));
-    if (bad.flat().length && !confirm(`${bad.flat().join(', ')}마디의 박 수가 맞지 않아요. 그대로 제출할까요?`)) return;
+    if (bad.flat().length && !confirm(`${bad.flat().join(', ')}마디의 박 수가 맞지 않습니다. 그대로 제출하시겠습니까?`)) return;
     finish(mine, truths.map((t, i) => grade(t, mine[i])));
   }
 

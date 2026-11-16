@@ -94,7 +94,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
     if (done) {
       const ok = right / it.names.length >= 0.8;
       foot.replaceChildren(
-        h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '맞았어요' : `${it.names.length}음 중 ${right}음`, h('span', {}, ' · 계이름을 누르면 그 음이 나요')),
+        h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '정답입니다' : `${it.names.length}음 중 ${right}음`, h('span', {}, ' · 계이름을 누르면 해당 음이 재생됩니다')),
         h('div', { class: 'actions' },
           h('button', { class: 'half', onclick: () => { stopAll(); playDegrees(it.midis, it.tonic, it.minor, false); } }, '정답 듣기'),
           h('button', { class: 'half', onclick: () => run(playCadence(it.tonic, it.minor)) }, '카덴츠 듣기'),

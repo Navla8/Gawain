@@ -92,10 +92,10 @@ export function skillsScreen() {
       h('small', {}, TRACKS.map((t) => `${t.short} ${trackLevelText(p.trackLevels[t.id])}`).join(' · ')),
     ),
     weak.length
-      ? h('section', { class: 'changes bad' }, h('h2', {}, '약한 단원 · 대련에서 더 자주 나와요'),
+      ? h('section', { class: 'changes bad' }, h('h2', {}, '약한 단원 · 대련에 더 자주 출제됩니다'),
         ...weak.map((s) => h('p', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), s.name, misses(s.id))))
       : '',
-    h('p', { class: 'note' }, `유형마다 따로 레벨이 올라요. 연속 ${MASTER_STREAK}번 통과(80% 이상)하거나, 95% 이상으로 ${FAST_STREAK}번 연속 맞히면 숙달이에요. 처음 두 번 만에 숙달하면 ‘쉬움’이에요. 숙달한 단원은 연습에서 빠지고, 3일 → 7일 → 그 뒤로 14일마다 대련에서 점검해요. 점검을 ${Math.round(FIRM * 100)}% 미만으로 넘기면 간격이 늘지 않고, 한 번 확인한 단원의 점검은 재생 횟수가 줄어요(실전 조건). 점검에서 틀리면 ‘약함’으로 연습에 돌아와요. 자주 틀리는 요소는 대련 문항에 더 자주 들어가고, 대련에서 틀린 받아쓰기·리듬 문제는 다음 날부터 대련에 다시 나와요.`),
+    h('p', { class: 'note' }, `레벨은 유형별로 따로 오릅니다. 80% 이상으로 ${MASTER_STREAK}번 연속 통과하거나 95% 이상으로 ${FAST_STREAK}번 연속 맞히면 숙달되며, 처음 두 번 만에 숙달하면 ‘쉬움’으로 분류됩니다. 숙달한 단원은 일반 연습에서 빠지고 3일 → 7일 → 이후 14일 간격으로 대련에서 점검합니다. 점검 점수가 ${Math.round(FIRM * 100)}% 미만이면 간격이 늘지 않으며, 한 번 확인을 마친 단원은 점검 시 재생 횟수가 줄어듭니다(실전 조건). 점검을 통과하지 못하면 ‘약함’ 표시와 함께 연습에 복귀합니다. 자주 틀리는 요소는 대련 출제 비중이 높아지며, 대련에서 틀린 받아쓰기·리듬 문제는 다음 날부터 다시 나옵니다.`),
     ...levels,
     history,
     h('div', { class: 'backup' }, h('button', { onclick: startPlacement }, p.placed ? '배치고사 다시 보기' : '배치고사 보기')),

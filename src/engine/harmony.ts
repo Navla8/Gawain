@@ -168,6 +168,6 @@ export function harmonyItem(skill: string, seed: number, weak: Weights = {}): Ha
   return {
     id, skill, tonic, fifths, minor, title: `화성 듣기 · ${keyName({ tonic, fifths, minor })}`,
     chords: realize(tonic, labels), answers: labels.slice(1), given: labels[0], choices: CHOICES[grammar],
-    prompt: `첫 화음은 ${pretty(tonicChord)}예요. 이어지는 화음을 차례로 골라요`,
+    prompt: `첫 화음은 ${pretty(tonicChord)}입니다. 이어지는 화음을 차례로 고르세요`,
   };
 }

@@ -57,8 +57,8 @@ export function startPlacement() {
     h('section', { class: 'intro' },
       h('p', { class: 'eyebrow' }, 'Placement'),
       h('h1', {}, again ? '실력을 다시 매겨요' : '어디서부터 시작할까요'),
-      h('p', {}, '계이름 듣기 · 리듬 받아쓰기 · 선율 받아쓰기 · 화성 듣기를 돌아가며 한 문제씩 내요. 맞히면 더 어려운 단원으로, 틀리면 더 쉬운 단원으로 옮겨 가며 지금 레벨을 찾아요.'),
-      h('p', {}, `약 13문항, 10분 남짓 걸려요. 모르는 문제는 ‘모르겠어요’로 넘겨도 돼요. 통과한 단원은 숙달로 치고, 3일 뒤 첫 점검에서 한 번 더 확인해요.`),
+      h('p', {}, '계이름 듣기, 리듬 받아쓰기, 선율 받아쓰기, 화성 듣기를 번갈아 한 문제씩 풉니다. 정답 여부에 따라 난이도를 오르내리며 현재 실력에 맞는 레벨을 찾습니다.'),
+      h('p', {}, `약 13문항으로 10분 안팎이 걸립니다. 잘 모르는 문제는 ‘모르겠어요’를 눌러 건너뛸 수 있습니다. 통과한 단원은 숙달 처리되며 3일 뒤 첫 점검에서 다시 확인합니다.`),
       h('button', { class: 'cta', onclick: () => next({ kind: 'placement', slots: [], i: 0, before: progressNow(), log: [] }) }, '시작'),
     ),
   );
@@ -150,7 +150,7 @@ function summary(run: Run) {
     : up
       ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'), h('b', {}, `Level ${lv}`), h('span', {}, after.level > MAX_LEVEL ? `L0~L${MAX_LEVEL}을 모두 마쳤어요` : levelName(lv)))
       : down
-        ? h('section', { class: 'leveldown' }, h('b', {}, `Level ${lv}`), h('span', {}, '잊은 단원을 다시 익히면 돌아가요'))
+        ? h('section', { class: 'leveldown' }, h('b', {}, `Level ${lv}`), h('span', {}, '잊은 단원을 다시 통과하면 원래 레벨로 돌아옵니다'))
         : trackUps.length
           ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'),
             ...trackUps.map((t) => h('b', {}, `${t.short} ${trackLevelText(after.trackLevels[t.id])}`)),
@@ -173,8 +173,8 @@ function summary(run: Run) {
     ),
     placementRows,
     run.kind === 'match' ? list('새로 익힘', learned, 'good') : '',
-    list('기억 확인 · 다음 점검이 미뤄졌어요', kept),
-    list('다시 연습 · 연습 풀로 돌아왔어요', lost, 'bad'),
+    list('기억 확인 · 다음 점검이 미뤄졌습니다', kept),
+    list('다시 연습 · 연습 풀로 돌아갔습니다', lost, 'bad'),
     h('section', { class: 'changes log' }, h('h2', {}, '문항'),
       ...run.log.map((l) => h('p', { class: l.ok ? 'ok' : 'bad' }, h('span', { class: 'tag' }, ROLE[l.slot.role]), name(l.skill), h('em', {}, l.ok ? '✓' : '✗')))),
     h('div', { class: 'actions' },

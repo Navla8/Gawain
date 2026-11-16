@@ -36,7 +36,7 @@ function home() {
   const reviews = plan.filter((s) => s.role === 'review').length;
   const retries = plan.filter((s) => s.role === 'retry').length;
   const matchSub = fresh
-    ? '배치고사로 내 레벨부터 찾아요 · 약 10분'
+    ? '배치고사로 현재 레벨 확인 · 약 10분'
     : `약 ${mins}분 · ${plan.length}문항` + (reviews ? ` · 망각 점검 ${reviews}` : '') + (retries ? ` · 지난 오답 ${retries}` : '') + (plan.some((s) => s.role === 'check') ? ' · 실력 확인' : '');
 
   app.replaceChildren(
@@ -64,7 +64,7 @@ function home() {
     ),
     calendar(d, today),
     review.length
-      ? card('오답 다시 풀기', `${review.length}문제 · 만점을 받으면 목록에서 빠져요`, () => startReview(), undefined, 'card review')
+      ? card('오답 다시 풀기', `${review.length}문제 · 만점을 받으면 목록에서 제외됩니다`, () => startReview(), undefined, 'card review')
       : '',
     h('h2', { class: 'section' }, '자유 연습'),
     (() => {
@@ -72,7 +72,7 @@ function home() {
       const solved = new Set(d.attempts.filter((a) => ids.has(a.problemId)).map((a) => a.problemId)).size;
       return card('문제집', `${SETS.map((s) => s.name).join('·')} ${ALL.length}문제 · ${solved}문제 풀어 봄`, setsScreen, solved / ALL.length);
     })(),
-    card('피아노 룸', '들은 멜로디를 바로 쳐 봐요 · 채점·기록 없음', pianoRoom),
+    card('피아노 룸', '들은 멜로디를 건반으로 바로 연주 · 채점·기록 없음', pianoRoom),
     (() => {
       const s = settings();
       const toggle = (label: string, key: 'minorDo' | 'melodyClick' | 'keySound', on: string, off: string) =>
@@ -106,7 +106,7 @@ function setsScreen() {
   const solved = new Set(d.attempts.filter((a) => ids.has(a.problemId)).map((a) => a.problemId)).size;
   app.replaceChildren(
     header('문제집'),
-    h('p', { class: 'info' }, '음정 크기별 고정 선율이에요. 대련 진도에는 들어가지 않아요.'),
+    h('p', { class: 'info' }, '음정 크기별로 모아 둔 고정 선율입니다. 대련 진도에는 반영되지 않습니다.'),
     card('전체 섞어 풀기', `${ALL.length}문제 · ${solved}문제 풀어 봄`, () => startAll(), solved / ALL.length),
     ...SETS.map((s) => {
       const mine = d.attempts.filter((a) => a.problemId.startsWith(s.id + '-'));
@@ -190,7 +190,7 @@ function importRecords() {
       const n = merge(JSON.parse(await input.files![0].text()));
       alert(`기록 ${n}개를 합쳤어요.`);
     } catch {
-      alert('가웨인 기록 파일이 아니에요.');
+      alert('올바른 가웨인 기록 파일이 아닙니다.');
     }
     home();
   };
@@ -217,7 +217,7 @@ startActivityClock((secs, reached) => {
   if (reached) toast('오늘 10분 달성!');
 });
 
-setSaveFailHandler(() => toast('기록을 저장하지 못했어요 · 기록 내보내기를 해 두세요'));
+setSaveFailHandler(() => toast('기록 저장에 실패했습니다 · 기록 내보내기로 백업해 주세요'));
 home();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js');
