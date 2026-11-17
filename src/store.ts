@@ -1,7 +1,7 @@
 import type { Note } from './engine/types.ts';
 import { dayKey } from './engine/habit.ts';
 
-// 연습 기록은 이 기기에만 저장한다 (코딩 지침 §2.5)
+// 연습 기록은 이 기기에 저장하고, 동기화를 켜면 본인의 비공개 Gist와만 주고받는다 (코딩 지침 §2.5, sync.ts)
 const KEY = 'gawain.v1';
 
 export interface Attempt {
@@ -80,6 +80,10 @@ let warned = false;
 export const setSaveFailHandler = (f: () => void) => { onSaveFail = f; warned = false; };
 const saveFailed = () => { if (!warned) { warned = true; onSaveFail?.(); } };
 
+let onSaved: (() => void) | undefined;
+/** 기록이 바뀔 때마다 부를 함수(기기 간 동기화 예약, sync.ts) */
+export const setSavedHandler = (f: () => void) => { onSaved = f; };
+
 /** 시도 하나를 기록한다 */
 export const record = (a: Attempt) => save((d) => d.attempts.push(a));
 
@@ -89,6 +93,7 @@ export function save(update: (d: Data) => void) {
   update(d);
   try {
     localStorage.setItem(KEY, JSON.stringify(d));
+    onSaved?.();
   } catch {
     saveFailed(); // 한도 초과·사생활 보호 모드 등: 기록만 건너뛰되 알린다
   }

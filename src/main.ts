@@ -8,6 +8,7 @@ import { EST } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
 import { load, merge, setSaveFailHandler, setSettings, settings } from './store.ts';
+import { SyncError, disconnect, startAutoSync, sync, syncState } from './sync.ts';
 import { app, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
 import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
@@ -87,7 +88,41 @@ function home() {
       h('button', { onclick: exportRecords }, '기록 내보내기'),
       h('button', { onclick: importRecords }, '기록 불러오기'),
     ),
+    syncRow(),
   );
+}
+
+// ───────── 기기 간 동기화 (sync.ts) ─────────
+
+function syncRow() {
+  const s = syncState();
+  if (!s.token) return h('footer', { class: 'backup sync' }, h('button', { onclick: connectSync }, '기기 동기화 · 끔'));
+  const last = s.last ? new Date(s.last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '아직 안 함';
+  return h('footer', { class: 'backup sync' },
+    h('button', { onclick: () => runSync() }, `기기 동기화 · ${last}`),
+    h('button', { onclick: () => { if (confirm('이 기기의 동기화 연결을 끊을까요? 기록은 그대로 남습니다.')) { disconnect(); home(); } } }, '연결 해제'),
+  );
+}
+
+const syncFail = (e: unknown) =>
+  e instanceof SyncError && e.kind === 'auth' ? '토큰이 맞지 않거나 만료되었습니다'
+    : e instanceof SyncError && e.kind === 'network' ? '인터넷 연결을 확인해 주세요'
+      : '동기화하지 못했습니다';
+
+async function runSync(token?: string) {
+  toast('동기화 중…');
+  try {
+    const n = await sync(token);
+    toast(n ? `다른 기기의 기록 ${n}개를 합쳤어요` : '동기화했어요');
+  } catch (e) {
+    toast(syncFail(e));
+  }
+  if (document.querySelector('.home-head')) home();
+}
+
+function connectSync() {
+  const token = prompt('GitHub 토큰(Gists 읽기·쓰기)을 붙여 넣어 주세요')?.trim();
+  if (token) runSync(token);
 }
 nav.home = home;
 
@@ -219,5 +254,9 @@ startActivityClock((secs, reached) => {
 
 setSaveFailHandler(() => toast('기록 저장에 실패했습니다 · 기록 내보내기로 백업해 주세요'));
 home();
+startAutoSync((n) => {
+  toast(`다른 기기의 기록 ${n}개를 합쳤어요`);
+  if (document.querySelector('.home-head')) home(); // 문제를 푸는 중이면 화면을 바꾸지 않는다
+});
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js');

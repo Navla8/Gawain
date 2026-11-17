@@ -21,6 +21,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
+  if (new URL(e.request.url).origin !== location.origin) return; // 기록 동기화(GitHub API)는 캐시하지 않는다
   // 앱 열기(페이지 이동)는 네트워크 먼저, 오프라인이면 캐시한 첫 화면. 나머지 파일은 캐시 먼저
   if (e.request.mode === 'navigate') {
     e.respondWith(fetch(e.request).catch(() => caches.match('./')));
