@@ -176,3 +176,37 @@ test('모르는 단원 id나 단원 없는 기록은 무시한다', () => {
   const p = computeProgress([{ at: day(0), pitchScore: 1, rhythmScore: 1 }, att(0, 'zzz', 1)]);
   assert.equal(p.level, 0);
 });
+
+test('익히는 단원을 4번 연속 틀리면 바로 아래 단원으로 돌아가 레벨이 내려가고, 아래 단원을 2번 맞히면 다시 올라간다', () => {
+  // d0b까지 숙달(L1 d1a를 익히는 중)
+  const a = [att(0, 'd0b', 1, { placement: true })];
+  assert.equal(computeProgress(a).trackLevels.degree, 1);
+  a.push(...[0, 1, 2, 3].map(() => att(1, 'd1a', 0.4)));
+  const p = computeProgress(a);
+  assert.equal(p.skills.d0b.mastered, false);
+  assert.equal(p.skills.d0b.stepped, true);
+  assert.equal(p.skills.d0a.mastered, true, '두 단계는 내려가지 않는다');
+  assert.equal(frontier(p, 'degree'), 'd0b');
+  assert.equal(p.trackLevels.degree, 0);
+  assert.equal(classify(p, 'd0b'), 'learning');
+  assert.equal(p.history.at(-1)!.level, 0);
+  // 같은 날이라도 아래 단원을 2번 맞히면 다시 숙달하고 d1a로 돌아간다
+  a.push(att(1, 'd0b', 0.85), att(1, 'd0b', 0.85));
+  const q = computeProgress(a);
+  assert.equal(q.skills.d0b.mastered, true);
+  assert.equal(q.skills.d0b.stepped, false);
+  assert.equal(frontier(q, 'degree'), 'd1a');
+});
+
+test('연속 실패가 4번에 못 미치거나 중간에 통과하면 레벨을 낮추지 않는다', () => {
+  const a = [att(0, 'd0b', 1, { placement: true }), ...[0, 1, 2].map(() => att(1, 'd1a', 0.4)), att(1, 'd1a', 0.9), ...[0, 1, 2].map(() => att(1, 'd1a', 0.4))];
+  const p = computeProgress(a);
+  assert.equal(p.skills.d0b.mastered, true);
+  assert.equal(frontier(p, 'degree'), 'd1a');
+});
+
+test('사다리 첫 단원은 연속으로 틀려도 내려갈 곳이 없다', () => {
+  const p = computeProgress([0, 1, 2, 3, 4].map(() => att(0, 'd0a', 0.3)));
+  assert.equal(frontier(p, 'degree'), 'd0a');
+  assert.equal(p.skills.d0a.fails, 5);
+});

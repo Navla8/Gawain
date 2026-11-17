@@ -20,6 +20,9 @@ export const FIRM = 0.9;
 /** 약함: 숙달 전이면서 점검에서 잊었거나, 최근 WEAK_MIN번 이상 시도의 통과율이 WEAK_RATE 미만(기획 M4.3) */
 export const WEAK_MIN = 4;
 export const WEAK_RATE = 0.5;
+/** 익히는 단원을 이 횟수만큼 연속으로 못 넘기면 같은 유형의 바로 아래 단원을 숙달 전으로 되돌려 쉬운 것부터 다시 다진다.
+ *  아래 단원은 RELEARN_STREAK번 연속 통과하면 다시 숙달된다(프롬프트 2026-11-17 14:53, 15:11) */
+export const STEP_DOWN_FAILS = 4;
 
 export interface SkillAttempt {
   at: string;
@@ -49,6 +52,10 @@ export interface SkillState {
   due?: string;
   /** 숙달했다가 점검에서 틀린 적이 있음 */
   lapsed: boolean;
+  /** 위 단원을 연속으로 못 넘겨 숙달 전으로 되돌아와 다시 다지는 중(STEP_DOWN_FAILS) */
+  stepped: boolean;
+  /** 익히는 중 연속 실패 수 */
+  fails: number;
   /** 마지막으로 잊은 날. 이날에는 다시 숙달하지 않는다(같은 날 다시 맞힌 것은 단기 기억이라서) */
   lapsedOn?: string;
   tries: number;
@@ -72,10 +79,10 @@ export interface Progress {
 export const attemptScore = (a: Pick<SkillAttempt, 'pitchScore' | 'rhythmScore'>) => Math.min(a.pitchScore, a.rhythmScore);
 export const passed = (a: Pick<SkillAttempt, 'pitchScore' | 'rhythmScore'>) => attemptScore(a) >= PASS;
 
-const fresh = (): SkillState => ({ mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, lapsed: false, tries: 0, recent: [] });
+const fresh = (): SkillState => ({ mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, lapsed: false, stepped: false, fails: 0, tries: 0, recent: [] });
 
 function master(st: SkillState, day: string) {
-  Object.assign(st, { mastered: true, streak: 0, fast: 0, reviews: 0, due: addDays(day, INTERVALS[0]), masteredAt: day });
+  Object.assign(st, { mastered: true, streak: 0, fast: 0, fails: 0, stepped: false, reviews: 0, due: addDays(day, INTERVALS[0]), masteredAt: day });
 }
 
 function reviewed(st: SkillState, day: string, score: number) {
@@ -83,13 +90,13 @@ function reviewed(st: SkillState, day: string, score: number) {
   st.due = addDays(day, INTERVALS[st.reviews]);
 }
 
-/** 배치고사로 숙달 전으로 되돌림(점검에서 잊은 것은 아니라 약함으로 치지 않는다) */
-function unmaster(st: SkillState) {
-  Object.assign(st, { mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, due: undefined });
+/** 배치고사·위 단원 연속 실패로 숙달 전으로 되돌림(점검에서 잊은 것은 아니라 약함으로 치지 않는다) */
+function unmaster(st: SkillState, stepped = false) {
+  Object.assign(st, { mastered: false, streak: 0, fast: 0, fails: 0, easy: false, reviews: 0, due: undefined, stepped });
 }
 
 function forgot(st: SkillState, day: string) {
-  Object.assign(st, { mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, due: undefined, lapsed: true, lapsedOn: day });
+  Object.assign(st, { mastered: false, streak: 0, fast: 0, easy: false, reviews: 0, due: undefined, fails: 0, lapsed: true, lapsedOn: day });
 }
 
 function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
@@ -109,16 +116,25 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
   }
   if (!ok) {
     if (st.mastered) forgot(st, day);
-    else st.streak = st.fast = 0;
+    else {
+      st.streak = st.fast = 0;
+      // 너무 많이 틀리면 바로 아래 단원부터 다시(한 번에 한 단계). 아래 단원도 같은 식으로 틀리면 또 한 단계 내려간다
+      const below = ladder(s.track)[ladder(s.track).indexOf(s) - 1];
+      if (++st.fails >= STEP_DOWN_FAILS && below && skills[below.id].mastered) {
+        st.fails = 0;
+        unmaster(skills[below.id], true);
+      }
+    }
     return;
   }
+  st.fails = 0;
   if (st.mastered) {
     if (st.due && day >= st.due) reviewed(st, day, attemptScore(a));
   } else {
     st.fast = attemptScore(a) >= FAST_PASS ? st.fast + 1 : 0;
     const quick = st.fast >= FAST_STREAK;
     // 잊은 날에 맞힌 것도 연속 통과로 쌓되, 다시 숙달은 다음 날부터
-    if ((++st.streak >= (st.lapsed ? RELEARN_STREAK : MASTER_STREAK) || quick) && st.lapsedOn !== day) {
+    if ((++st.streak >= (st.lapsed || st.stepped ? RELEARN_STREAK : MASTER_STREAK) || quick) && st.lapsedOn !== day) {
       const easy = quick && st.tries <= FAST_STREAK && !st.lapsed;
       master(st, day);
       st.easy = easy;

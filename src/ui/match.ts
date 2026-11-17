@@ -150,7 +150,7 @@ function summary(run: Run) {
     : up
       ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'), h('b', {}, `Level ${lv}`), h('span', {}, after.level > MAX_LEVEL ? `L0~L${MAX_LEVEL}을 모두 마쳤어요` : levelName(lv)))
       : down
-        ? h('section', { class: 'leveldown' }, h('b', {}, `Level ${lv}`), h('span', {}, '잊은 단원을 다시 숙달하면 원래 레벨로 돌아옵니다'))
+        ? h('section', { class: 'leveldown' }, h('b', {}, `Level ${lv}`), h('span', {}, '아래 단원을 다시 숙달하면 원래 레벨로 돌아옵니다'))
         : trackUps.length
           ? h('section', { class: 'levelup' }, h('p', { class: 'eyebrow' }, 'Level up'),
             ...trackUps.map((t) => h('b', {}, `${t.short} ${trackLevelText(after.trackLevels[t.id])}`)),
