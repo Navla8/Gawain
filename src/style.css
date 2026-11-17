@@ -369,10 +369,11 @@ h2 { margin: 8px 0 -4px; font-family: var(--font-mono); font-size: 12px; color: 
 .lvl li > span:nth-child(3) { grid-column: 2; color: var(--muted); font-size: 12px; }
 .lvl li .miss { grid-column: 2; color: var(--text); font-size: 12px; }
 .changes p .miss { margin-left: auto; color: var(--muted); font-size: 12px; }
-.lvl li .ok { color: var(--accent-text); }
-.lvl li .due { color: var(--signal-caution); }
-.lvl li .weak { color: var(--signal-danger); }
-.lvl li .locked { opacity: 0.6; }
+/* 상태 글자색: 위의 :nth-child(3) 회색보다 우선하도록 같은 구체성으로 뒤에 둔다 */
+.lvl li > span.ok { color: var(--accent-text); }
+.lvl li > span.due { color: var(--signal-caution); }
+.lvl li > span.weak { color: var(--signal-danger); }
+.lvl li > span.locked { opacity: 0.6; }
 .dots { font-style: normal; letter-spacing: 2px; color: var(--accent-text); }
 .history { display: flex; flex-direction: column; border-top: 1px solid var(--line); padding-top: 8px; }
 .history p { display: flex; gap: 14px; align-items: baseline; margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); }

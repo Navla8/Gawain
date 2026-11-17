@@ -369,8 +369,9 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
       h('div', {}, h('b', {}, pct(rhythmScore)), h('span', {}, '리듬')),
     ),
     ctx.skill ? h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '통과' : '80%에 못 미쳤어요', ctx.placement ? '' : h('span', {}, ok ? '' : ' · 이 단원을 더 연습해요')) : '',
-    h('h2', {}, '내 답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.mine)),
+    // 마디 재생 순서(정답 → 내 답)와 같게 정답을 위에 둔다
     h('h2', {}, '정답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.truth)),
+    h('h2', {}, '내 답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.mine)),
     h('p', { class: 'legend' },
       h('span', { class: 'ok' }, '●'), ' ✓ 맞음 · ',
       ...(rhythm ? [] : [h('span', { class: 'danger' }, '●'), ' 음 음높이 틀림 · ']),
