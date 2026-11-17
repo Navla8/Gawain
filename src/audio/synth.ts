@@ -11,20 +11,55 @@ export function later(sec: number, fn: () => void) {
   timers.push(window.setTimeout(fn, sec * 1000));
 }
 
+// 폰을 잠갔다 열거나 전화가 오면 iOS는 AudioContext를 끊는다('interrupted'/'suspended').
+// 돌아와서 resume()만 하면 상태는 'running'인데 소리가 안 나는 경우가 있어,
+// 끊긴 적이 있으면 다음 터치 때 컨텍스트를 새로 만든다.
+let stale = false;
+
+function createContext() {
+  // iOS 17+: 무음 스위치가 켜져 있어도 미디어 소리로 재생
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session) session.type = 'playback';
+  const c = new AudioContext();
+  const comp = c.createDynamicsCompressor();
+  out = c.createGain();
+  out.gain.value = 0.5;
+  out.connect(comp).connect(c.destination);
+  c.onstatechange = () => {
+    if (c === ctx && c.state !== 'running') stale = true;
+  };
+  ctx = c;
+  stale = false;
+}
+
 /** 사용자 터치 안에서 처음 불러야 iOS가 소리를 허락한다 */
 export function unlockAudio(): AudioContext {
-  if (!ctx) {
-    // iOS 17+: 무음 스위치가 켜져 있어도 미디어 소리로 재생
-    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-    if (session) session.type = 'playback';
-    ctx = new AudioContext();
-    const comp = ctx.createDynamicsCompressor();
-    out = ctx.createGain();
-    out.gain.value = 0.5;
-    out.connect(comp).connect(ctx.destination);
+  if (!ctx || ctx.state === 'closed') createContext();
+  if (ctx!.state !== 'running') void ctx!.resume().catch(() => { stale = true; });
+  return ctx!;
+}
+
+/** 사용자 터치마다 부른다: 끊긴 적이 있으면 컨텍스트를 새로 만들고, 아니면 깨운다 */
+function wake() {
+  if (!ctx) return; // 아직 소리를 낸 적이 없으면 첫 재생 때 만든다
+  if (stale) {
+    stopAll();
+    const old = ctx;
+    ctx = undefined;
+    void old.close().catch(() => { /* 이미 닫힘 */ });
   }
-  if (ctx.state !== 'running') void ctx.resume();
-  return ctx;
+  unlockAudio();
+}
+
+if (typeof window !== 'undefined') {
+  // 캡처 단계라서 건반·버튼 핸들러보다 먼저 돈다
+  for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) {
+    window.addEventListener(type, wake, { capture: true, passive: true });
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { stopAll(); stale = true; }
+  });
+  window.addEventListener('pagehide', () => { stale = true; });
 }
 
 const freq = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
