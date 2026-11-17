@@ -1,5 +1,5 @@
 import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill, trackLevelText } from '../engine/curriculum.ts';
-import { bestOf, computeProgress, sinceReset, weakness, type Progress } from '../engine/progress.ts';
+import { bestOf, blocker, classify, computeProgress, sinceReset, weakness, type Progress } from '../engine/progress.ts';
 import { MAX_TOTAL, frontier, isExam, learnUnit, nextPlacement, placementLeft, planMatch, retryIds, stepDown, type Slot } from '../engine/session.ts';
 import { contentTags } from '../engine/grade.ts';
 import { degreeItem, rhythmItem } from '../engine/drills.ts';
@@ -111,6 +111,29 @@ function show(run: Run, slot: Slot, step: [number, number]) {
     },
     next: () => { run.i++; next(run); },
   };
+  present(id, slot, ctx);
+}
+
+/**
+ * 실력 화면에서 고른 단원만 이어서 푼다. 열린 단원은 대련처럼 단원 판정에 들어가고(숙달한 단원은 점검으로),
+ * 아직 차례가 안 된 단원은 미리 풀어 보기라 판정에 넣지 않는다(기획 §M3.6). 뒤로 가면 실력 화면.
+ */
+export function startDrill(id: string, back: () => void) {
+  stopAll();
+  const p = progressNow();
+  const s = skill(id)!;
+  const counted = classify(p, id) !== 'waiting' && !blocker(p, id);
+  const slot: Slot = { track: s.track, skill: id, role: p.skills[id].mastered ? 'review' : 'learn' };
+  present(id, slot, {
+    ...(counted && { skill: id }),
+    ...(counted && isExam(p, slot) && { plays: EXAM_PLAYS[s.track], exam: true }),
+    back,
+    next: () => startDrill(id, back),
+  });
+}
+
+/** 단원 id의 새 문항(지난 오답 자리면 그 문제)을 띄운다 */
+function present(id: string, slot: Slot, ctx: ItemCtx) {
   const weak = weakness(load().attempts, id);
   const s = skill(id)!;
   // 지난 오답은 문제 id의 시드로 같은 문제를 다시 만든다. 새 문항은 약점 표식이 든 것을 골라 낸다(기획 §M6.2)

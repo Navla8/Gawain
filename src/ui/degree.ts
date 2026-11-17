@@ -110,7 +110,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
   }
 
   app.replaceChildren(
-    header(it.title, ctx.step),
+    header(it.title, ctx.step, ctx.back),
     h('p', { class: 'info' }, `${it.names.length}음 · 첫 재생에 카덴츠(${it.minor ? 'i–iv–V–i' : 'I–IV–V–I'})를 먼저 들려줘요`),
     h('div', { class: 'listen' }, playBtn, scaleBtn),
     slots,

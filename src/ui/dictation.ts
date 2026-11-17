@@ -30,6 +30,8 @@ export interface ItemCtx {
   retry?: boolean;
   /** 실전 조건(기획 §M6.3, §M7.3): 선율 중 메트로놈과 건반 소리를 끈다 */
   exam?: boolean;
+  /** 머리줄 뒤로 가기(없으면 홈). 실력 화면에서 연 단원 풀기는 실력 화면으로 */
+  back?: () => void;
 }
 
 const MAX_PLAYS = 5;
@@ -256,7 +258,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
 
   const first = p.notes.find((n) => n.midi !== null)!.midi!;
   app.replaceChildren(
-    header(p.title, ctx.step),
+    header(p.title, ctx.step, ctx.back),
     h('p', { class: 'info' }, rhythm
       ? `${meterText(p)} · ${p.bars}마디 · 리듬만 적어요`
       : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디${p.pickup ? ' · 못갖춘마디(한 박)' : ''}${p.clef === 'bass' ? ' · 낮은음자리표' : ''} · 첫 음 ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)}`
@@ -363,7 +365,7 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
   // 다시 풀기는 연습으로만 남긴다(답을 본 뒤라 단원 판정에 넣지 않음)
   const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, retry: undefined, plays: undefined, exam: undefined, onGraded: undefined };
   app.replaceChildren(
-    header(p.title, ctx.step),
+    header(p.title, ctx.step, ctx.back),
     h('div', { class: 'scores' + (perfect ? ' perfect' : '') },
       rhythm ? '' : h('div', {}, h('b', {}, pct(sc.pitchScore)), h('span', {}, '음높이')),
       h('div', {}, h('b', {}, pct(rhythmScore)), h('span', {}, '리듬')),

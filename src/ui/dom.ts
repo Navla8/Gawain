@@ -33,9 +33,9 @@ export function clock() {
 }
 
 /** 문항 화면의 머리줄. step이 있으면 대련·배치고사 진행 막대를 단다 */
-export function header(title: string, step?: [number, number]) {
+export function header(title: string, step?: [number, number], back: () => void = nav.home) {
   const bar = h('header', { class: 'bar' },
-    h('button', { class: 'back', onclick: () => { if (!step || confirm('연습을 중단할까요? 지금까지 푼 문항은 기록에 남습니다.')) nav.home(); }, 'aria-label': '홈' }, '‹'),
+    h('button', { class: 'back', onclick: () => { if (!step || confirm('연습을 중단할까요? 지금까지 푼 문항은 기록에 남습니다.')) back(); }, 'aria-label': '홈' }, '‹'),
     h('span', { class: 'title' }, title),
     step ? h('span', { class: 'step' }, `${step[0]} / ${step[1]}`) : '',
     clock(),

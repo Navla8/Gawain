@@ -103,7 +103,7 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
   }
 
   app.replaceChildren(
-    header(it.title, ctx.step),
+    header(it.title, ctx.step, ctx.back),
     h('p', { class: 'info' }, it.prompt),
     h('div', { class: 'listen' }, playBtn),
     slots,

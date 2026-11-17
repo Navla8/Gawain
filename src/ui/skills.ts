@@ -5,7 +5,7 @@ import { setCounting } from '../activity.ts';
 import { stopAll } from '../audio/synth.ts';
 import { load } from '../store.ts';
 import { app, h, header } from './dom.ts';
-import { startPlacement } from './match.ts';
+import { startDrill, startPlacement } from './match.ts';
 
 // 실력 화면: 레벨 사다리, 단원 분류(쉬움·안정·익히는 중·약함·차례 전)와 점검일, 약한 단원, 레벨 기록 (기획 M3, M4)
 
@@ -70,7 +70,8 @@ export function skillsScreen() {
     const started = SKILLS.some((s) => s.level === L.level && classify(p, s.id) !== 'waiting');
     const status = 'planned' in L ? '준비 중' : doneAt(p, L.level) ? `완료 ${md(doneAt(p, L.level)!)}` : started ? '진행 중' : '차례 전';
     const rows = SKILLS.filter((s) => s.level === L.level).map((s) =>
-      h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id), misses(s.id)));
+      h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id), misses(s.id),
+        'planned' in L ? '' : h('button', { class: 'drill', onclick: () => startDrill(s.id, skillsScreen), 'aria-label': `${s.name} 풀기` }, '풀기')));
     return h('section', { class: 'lvl' + (L.level === lv ? ' current' : '') + ('planned' in L ? ' planned' : '') },
       h('header', {}, h('b', {}, `L${L.level}`), h('span', {}, L.name), h('em', {}, status)),
       h('p', {}, L.goal),
