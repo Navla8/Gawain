@@ -354,7 +354,6 @@ h2 { margin: 8px 0 -4px; font-family: var(--font-mono); font-size: 12px; color: 
 .level-hero b { font-family: var(--font-display); font-size: 64px; font-weight: 400; line-height: 1; }
 .level-hero > span { font-size: 18px; }
 .level-hero small { color: var(--muted); font-size: 13px; margin-top: 4px; }
-.note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .lvl { border-top: 1px solid var(--line); padding: 14px 0 4px; }
 .lvl > header { display: flex; align-items: baseline; gap: 10px; }
 .lvl > header b { font-family: var(--font-display); font-size: 26px; font-weight: 400; }
