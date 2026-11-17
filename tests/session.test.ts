@@ -6,7 +6,8 @@ import { SKILLS, ladder, within } from '../src/engine/curriculum.ts';
 
 let clock = 0;
 const at = (d: number) => new Date(2026, 10, 1 + d, 12, 0, 0, clock++).toISOString();
-const masterAll = (ids: string[], d = 0): (SkillAttempt & { problemId?: string })[] => ids.flatMap((skill) => [0, 1, 2].map(() => ({ at: at(d), skill, pitchScore: 1, rhythmScore: 1 })));
+// 능숙 3번(하나는 다른 날)으로 d일에 숙달
+const masterAll = (ids: string[], d = 0): (SkillAttempt & { problemId?: string })[] => ids.flatMap((skill) => [d - 1, d - 1, d].map((x) => ({ at: at(x), skill, pitchScore: 1, rhythmScore: 1 })));
 
 test('처음에는 받아쓰기의 선수 단원(계이름 도~솔, 리듬 4분·2분)부터 익힌다', () => {
   const p = computeProgress([]);
@@ -146,11 +147,11 @@ test('짧은 문항은 약한 유형에 더 많이, 그래도 두 유형 모두'
 
 test('지금 단원이 약함(점검에서 잊음)이면 짧은 문항을 더 받는다', () => {
   const base = masterAll(['d0a', 'd0b', 'r1']);
-  // 계이름 d1a: 숙달(3) 뒤 점검에서 잊음 → 최근 [1,1,1,0] 75%, 약함. 리듬 r2a: [1,1,0,1,0] 60%, 익히는 중
+  // 계이름 d1a: 숙달(능숙 3) 뒤 점검에서 잊음 → 최근 [1,1,1,0] 75%, 약함. 리듬 r2a: 능숙·능숙·실패·능숙·통과·실패 [1,1,0,1,0.5,0] 58%, 익히는 중(능숙은 실패로 깎여 1)
   // 통과율만 보면 리듬이 더 약하지만, 잊은 단원에 가중치가 더 붙어 계이름이 더 많이 나온다
-  const d1a = [1, 1, 1].map(() => ({ at: at(1), skill: 'd1a', pitchScore: 0.85, rhythmScore: 1 }));
+  const d1a = [0, 0, 1].map((d) => ({ at: at(d), skill: 'd1a', pitchScore: 1, rhythmScore: 1 }));
   d1a.push({ at: at(4), skill: 'd1a', pitchScore: 0, rhythmScore: 1 });
-  const r1 = [0.85, 0.85, 0, 0.85, 0].map((x) => ({ at: at(4), skill: 'r2a', pitchScore: x, rhythmScore: 1 }));
+  const r1 = [1, 1, 0, 1, 0.85, 0].map((x) => ({ at: at(4), skill: 'r2a', pitchScore: x, rhythmScore: 1 }));
   const plan = planMatch(computeProgress([...base, ...d1a, ...r1]), '2026-11-05');
   const n = (t: string) => plan.filter((s) => s.track === t && s.role === 'learn').length;
   assert.ok(n('degree') > n('rhythm'), `계이름 ${n('degree')} 리듬 ${n('rhythm')}`);

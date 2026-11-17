@@ -3,7 +3,7 @@ import { SETS, pickRandom, findProblem } from './engine/bank.ts';
 import { GOAL_SECONDS, addDays, dayKey, dayStatus, reviewIds, streak } from './engine/habit.ts';
 import { setCounting, startActivityClock } from './activity.ts';
 import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from './engine/curriculum.ts';
-import { computeProgress, isDue } from './engine/progress.ts';
+import { computeProgress, isDue, sinceReset } from './engine/progress.ts';
 import { EST } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
@@ -24,7 +24,7 @@ function home() {
   const secs = d.seconds[today] ?? 0;
   const st = streak(d.attempts, d.seconds, today);
   const review = reviewIds(d.attempts).filter((id) => findProblem(id));
-  const p = computeProgress(d.attempts);
+  const p = computeProgress(sinceReset(d.attempts));
   const lv = Math.min(p.level, MAX_LEVEL);
   const inLevel = SKILLS.filter((s) => s.level === lv);
   const masteredIn = inLevel.filter((s) => p.skills[s.id].mastered).length;

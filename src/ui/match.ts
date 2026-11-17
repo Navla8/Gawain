@@ -1,5 +1,5 @@
 import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill, trackLevelText } from '../engine/curriculum.ts';
-import { bestOf, computeProgress, weakness, type Progress } from '../engine/progress.ts';
+import { bestOf, computeProgress, sinceReset, weakness, type Progress } from '../engine/progress.ts';
 import { MAX_TOTAL, frontier, isExam, learnUnit, nextPlacement, placementLeft, planMatch, retryIds, stepDown, type Slot } from '../engine/session.ts';
 import { contentTags } from '../engine/grade.ts';
 import { degreeItem, rhythmItem } from '../engine/drills.ts';
@@ -27,12 +27,12 @@ interface Run {
 }
 
 const seed = () => Math.floor(Math.random() * 1e9);
-const progressNow = () => computeProgress(load().attempts);
+const progressNow = () => computeProgress(sinceReset(load().attempts));
 export const levelName = (l: number) => LEVELS[Math.min(l, LEVELS.length - 1)].name;
 
 /** 대련 한 판 구성(홈의 예상 시간 표시도 이것으로) */
 export function matchPlan() {
-  const attempts = load().attempts;
+  const attempts = sinceReset(load().attempts);
   const p = computeProgress(attempts);
   const today = dayKey(new Date());
   return { p, slots: planMatch(p, today, retryIds(attempts, p, today)) };

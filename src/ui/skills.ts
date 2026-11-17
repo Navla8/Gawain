@@ -1,5 +1,5 @@
 import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, skill, trackLevelText } from '../engine/curriculum.ts';
-import { FAST_STREAK, FIRM, MASTER_STREAK, RELEARN_STREAK, STEP_DOWN_FAILS, blocker, classify, computeProgress, isDue, weakness, type Progress } from '../engine/progress.ts';
+import { FAST_PASS, FIRM, MASTER_STREAK, RELEARN_STREAK, STEP_DOWN_FAILS, blocker, classify, computeProgress, isDue, sinceReset, weakness, type Progress } from '../engine/progress.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll } from '../audio/synth.ts';
@@ -27,7 +27,7 @@ export function skillsScreen() {
   stopAll();
   setCounting(false);
   const attempts = load().attempts;
-  const p = computeProgress(attempts);
+  const p = computeProgress(sinceReset(attempts));
   const today = dayKey(new Date());
   const lv = Math.min(p.level, MAX_LEVEL);
   const inLevel = SKILLS.filter((s) => s.level === lv);
@@ -36,9 +36,11 @@ export function skillsScreen() {
   const state = (id: string) => {
     const st = p.skills[id];
     const c = classify(p, id);
-    // 점검에서 잊었거나 위 단원을 못 넘겨 되돌아온 단원은 2번 연속 통과로 다시 숙달된다(progress.ts)
+    // 점검에서 잊었거나 위 단원을 못 넘겨 되돌아온 단원은 능숙 2번으로 다시 숙달된다(progress.ts)
     const need = st.lapsed || st.stepped ? RELEARN_STREAK : MASTER_STREAK;
-    const dots = () => h('i', { class: 'dots' }, '●'.repeat(Math.min(st.streak, need)) + '○'.repeat(Math.max(0, need - st.streak)));
+    // 점 = 쌓은 능숙 수. 처음 익힐 때 능숙이 모두 같은 날이면 다른 날 한 번 더 필요하다
+    const sameDay = !st.lapsed && !st.stepped && st.streak >= need && new Set(st.fluentDays).size < 2;
+    const dots = () => h('i', { class: 'dots' }, '●'.repeat(Math.min(st.streak, need)) + '○'.repeat(Math.max(0, need - st.streak)), sameDay ? h('small', {}, ' · 내일 한 번 더') : '');
     if (c === 'easy' || c === 'stable') {
       const label = c === 'easy' ? '쉬움' : '안정';
       return isDue(p, id, today)
@@ -97,7 +99,7 @@ export function skillsScreen() {
       ? h('section', { class: 'changes bad' }, h('h2', {}, '약한 단원 · 대련에 더 자주 출제됩니다'),
         ...weak.map((s) => h('p', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), s.name, misses(s.id))))
       : '',
-    h('p', { class: 'note' }, `레벨은 유형별로 따로 오릅니다. 80% 이상으로 ${MASTER_STREAK}번 연속 통과하거나 95% 이상으로 ${FAST_STREAK}번 연속 맞히면 숙달되며, 처음 두 번 만에 숙달하면 ‘쉬움’으로 분류됩니다. 숙달한 단원은 일반 연습에서 빠지고 3일 → 7일 → 이후 14일 간격으로 대련에서 점검합니다. 점검 점수가 ${Math.round(FIRM * 100)}% 미만이면 간격이 늘지 않으며, 한 번 확인을 마친 단원은 점검 시 재생 횟수가 줄어듭니다(실전 조건). 점검을 통과하지 못하면 ‘약함’ 표시와 함께 연습에 복귀합니다. [문구 T-008] 익히는 단원을 ${STEP_DOWN_FAILS}번 연속 못 넘기면 바로 아래 단원으로 한 단계 내려가 ‘다시 다지는 중’이 되고, 그 단원을 ${RELEARN_STREAK}번 연속 통과하면 다시 올라갑니다. 자주 틀리는 요소는 대련 출제 비중이 높아지며, 대련에서 틀린 받아쓰기·리듬 문제는 다음 날부터 대련에 다시 나옵니다.`),
+    h('p', { class: 'note' }, `레벨은 유형별로 따로 오릅니다. [문구 T-008] ${Math.round(FAST_PASS * 100)}% 이상을 적게 듣고 빨리 맞히면 ‘능숙’(점 하나)이고, 능숙 ${MASTER_STREAK}번(하루에 몰지 않고 이틀 이상)이면 숙달됩니다. 80% 이상이어도 여러 번 듣거나 오래 걸리면 점이 늘지 않고 그 단원이 더 자주 나오며, 80% 미만은 점 하나를 잃습니다. 시도가 모두 능숙이면 ‘쉬움’으로 분류됩니다. 숙달한 단원은 일반 연습에서 빠지고 3일 → 7일 → 이후 14일 간격으로 대련에서 점검합니다. 점검 점수가 ${Math.round(FIRM * 100)}% 미만이면 간격이 늘지 않으며, 한 번 확인을 마친 단원은 점검 시 재생 횟수가 줄어듭니다(실전 조건). 점검을 통과하지 못하면 ‘약함’ 표시와 함께 연습에 복귀합니다. [문구 T-008] 익히는 단원을 ${STEP_DOWN_FAILS}번 연속 못 넘기면 바로 아래 단원으로 한 단계 내려가 ‘다시 다지는 중’이 되고, 40% 미만은 두 번 틀린 것으로 칩니다. 그 단원을 능숙 ${RELEARN_STREAK}번이면 다시 올라갑니다. 자주 틀리는 요소는 대련 출제 비중이 높아지며, 대련에서 틀린 받아쓰기·리듬 문제는 다음 날부터 대련에 다시 나옵니다.`),
     ...levels,
     history,
     h('div', { class: 'backup' }, h('button', { onclick: startPlacement }, p.placed ? '배치고사 다시 보기' : '배치고사 보기')),

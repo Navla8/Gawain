@@ -375,6 +375,7 @@ h2 { margin: 8px 0 -4px; font-family: var(--font-mono); font-size: 12px; color: 
 .lvl li > span.weak { color: var(--signal-danger); }
 .lvl li > span.locked { opacity: 0.6; }
 .dots { font-style: normal; letter-spacing: 2px; color: var(--accent-text); }
+.dots small { letter-spacing: 0; font-size: inherit; }
 .history { display: flex; flex-direction: column; border-top: 1px solid var(--line); padding-top: 8px; }
 .history p { display: flex; gap: 14px; align-items: baseline; margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .history p span { font-family: var(--font-mono); font-size: 12px; color: var(--muted); width: 48px; }
