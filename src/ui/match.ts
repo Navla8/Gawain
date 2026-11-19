@@ -7,7 +7,7 @@ import { melodyItem, tuneItem } from '../engine/melody.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll, playNotes } from '../audio/synth.ts';
-import { load, save } from '../store.ts';
+import { favoriteIds, load, save } from '../store.ts';
 import { app, h, header, nav } from './dom.ts';
 import { solve, type ItemCtx } from './dictation.ts';
 import { degreeScreen } from './degree.ts';
@@ -114,11 +114,7 @@ function show(run: Run, slot: Slot, step: [number, number]) {
   present(id, slot, ctx);
 }
 
-/**
- * 실력 화면에서 고른 단원만 이어서 푼다. 열린 단원은 대련처럼 단원 판정에 들어가고(숙달한 단원은 점검으로),
- * 아직 차례가 안 된 단원은 미리 풀어 보기라 판정에 넣지 않는다(기획 §M3.6). 뒤로 가면 실력 화면.
- */
-export function startDrill(id: string, back: () => void) {
+function drillOne(id: string, back: () => void, next: () => void) {
   stopAll();
   const p = progressNow();
   const s = skill(id)!;
@@ -128,8 +124,37 @@ export function startDrill(id: string, back: () => void) {
     ...(counted && { skill: id }),
     ...(counted && isExam(p, slot) && { plays: EXAM_PLAYS[s.track], exam: true }),
     back,
-    next: () => startDrill(id, back),
+    next,
   });
+}
+
+/**
+ * 실력 화면에서 고른 단원만 이어서 푼다. 열린 단원은 대련처럼 단원 판정에 들어가고(숙달한 단원은 점검으로),
+ * 아직 차례가 안 된 단원은 미리 풀어 보기라 판정에 넣지 않는다(기획 §M3.6). 뒤로 가면 실력 화면.
+ */
+export const startDrill = (id: string, back: () => void) => drillOne(id, back, () => startDrill(id, back));
+
+/** 즐겨찾기 단원을 무작위 순서로 돌아가며 한 문항씩 이어서 낸다(기획 §M9.2) */
+export function startFavorites(back: () => void) {
+  const queue: string[] = [];
+  let last: string | undefined;
+  const step = () => {
+    if (!queue.length) {
+      queue.push(...favoriteIds().filter((id) => skill(id)));
+      if (!queue.length) return back();
+      for (let i = queue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [queue[i], queue[j]] = [queue[j], queue[i]];
+      }
+      if (queue.length > 1 && queue[0] === last) {
+        const j = 1 + Math.floor(Math.random() * (queue.length - 1));
+        [queue[0], queue[j]] = [queue[j], queue[0]];
+      }
+    }
+    last = queue.shift()!;
+    drillOne(last, back, step);
+  };
+  step();
 }
 
 /** 단원 id의 새 문항(지난 오답 자리면 그 문제)을 띄운다 */

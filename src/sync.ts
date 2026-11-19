@@ -100,8 +100,10 @@ async function run(newToken?: string): Promise<number> {
     }
     added = merge(remote);
     const local = load();
-    const r = { attempts: remote.attempts?.length ?? 0, seconds: remote.seconds ?? {} };
-    const ahead = local.attempts.length > r.attempts || Object.entries(local.seconds).some(([k, v]) => v > (r.seconds[k] ?? 0));
+    const r = { attempts: remote.attempts?.length ?? 0, seconds: remote.seconds ?? {}, favorites: remote.favorites ?? {} };
+    const ahead = local.attempts.length > r.attempts
+      || Object.entries(local.seconds).some(([k, v]) => v > (r.seconds[k] ?? 0))
+      || Object.entries(local.favorites ?? {}).some(([k, f]) => !r.favorites[k] || f.at > r.favorites[k].at);
     if (ahead) await api(s.token, `/gists/${id}`, { method: 'PATCH', body: JSON.stringify({ files: { [FILE]: { content: body() } } }) });
   }
   setState({ token: s.token, gistId: id, last: new Date().toISOString() });

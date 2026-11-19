@@ -45,3 +45,9 @@ export function header(title: string, step?: [number, number], back: () => void 
 }
 
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+/** 목록 카드 행 */
+export function card(title: string, sub: string, onclick: () => void, progress?: number, cls = 'card') {
+  const meter = progress === undefined ? '' : h('div', { class: 'meter' }, h('i', { style: `width:${Math.round(progress * 100)}%` }));
+  return h('button', { class: cls, onclick }, h('strong', {}, title), h('em', { class: 'chev' }, '›'), h('span', {}, sub), meter);
+}

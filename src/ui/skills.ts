@@ -3,9 +3,9 @@ import { MASTER_STREAK, RELEARN_STREAK, blocker, classify, computeProgress, isDu
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll } from '../audio/synth.ts';
-import { load } from '../store.ts';
-import { app, h, header } from './dom.ts';
-import { startDrill, startPlacement } from './match.ts';
+import { favoriteIds, load, setFavorite } from '../store.ts';
+import { app, card, h, header } from './dom.ts';
+import { startDrill, startFavorites, startPlacement } from './match.ts';
 
 // 실력 화면: 레벨 사다리, 단원 분류(쉬움·안정·익히는 중·약함·차례 전)와 점검일, 약한 단원, 레벨 기록 (기획 M3, M4)
 
@@ -66,12 +66,22 @@ export function skillsScreen() {
     return top.length ? h('small', { class: 'miss' }, '자주 틀림 · ' + top.map(([t, n]) => `${t} ${n}`).join(' · ')) : '';
   };
 
+  const favs = new Set(favoriteIds());
+  const favList = [...favs].filter((id) => skill(id));
   const levels = LEVELS.map((L) => {
     const started = SKILLS.some((s) => s.level === L.level && classify(p, s.id) !== 'waiting');
     const status = 'planned' in L ? '준비 중' : doneAt(p, L.level) ? `완료 ${md(doneAt(p, L.level)!)}` : started ? '진행 중' : '차례 전';
-    const rows = SKILLS.filter((s) => s.level === L.level).map((s) =>
-      h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id), misses(s.id),
-        'planned' in L ? '' : h('button', { class: 'drill', onclick: () => startDrill(s.id, skillsScreen), 'aria-label': `${s.name} 풀기` }, '풀기')));
+    const rows = SKILLS.filter((s) => s.level === L.level).map((s) => {
+      const on = favs.has(s.id);
+      return h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id), misses(s.id),
+        'planned' in L ? '' : h('button', {
+          class: 'star' + (on ? ' on' : ''),
+          'aria-label': '즐겨찾기',
+          'aria-pressed': String(on),
+          onclick: () => { const y = window.scrollY; setFavorite(s.id, !on); skillsScreen(); window.scrollTo(0, y); },
+        }, on ? '★' : '☆'),
+        'planned' in L ? '' : h('button', { class: 'drill', onclick: () => startDrill(s.id, skillsScreen), 'aria-label': `${s.name} 풀기` }, '풀기'));
+    });
     return h('section', { class: 'lvl' + (L.level === lv ? ' current' : '') + ('planned' in L ? ' planned' : '') },
       h('header', {}, h('b', {}, `L${L.level}`), h('span', {}, L.name), h('em', {}, status)),
       h('p', {}, L.goal),
@@ -88,6 +98,9 @@ export function skillsScreen() {
 
   app.replaceChildren(
     header('실력'),
+    favList.length
+      ? card('즐겨찾기 연습', `${favList.length}단원 · 고른 단원을 돌아가며 풉니다`, () => startFavorites(skillsScreen))
+      : '',
     h('section', { class: 'level-hero' },
       h('p', { class: 'eyebrow' }, p.level > MAX_LEVEL ? `L0~L${MAX_LEVEL} 완료` : '지금 레벨'),
       h('b', {}, `Level ${lv}`),

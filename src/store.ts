@@ -26,10 +26,17 @@ export interface Attempt {
   miss?: string[];
 }
 
+export interface Favorite {
+  on: boolean;
+  at: string;
+}
+
 export interface Data {
   attempts: Attempt[];
   /** 날짜별 실제 풀이 시간(초) */
   seconds: Record<string, number>;
+  /** 단원 즐겨찾기(해제 전파를 위해 on/off와 시각을 저장, 기획 §M9.2) */
+  favorites?: Record<string, Favorite>;
 }
 
 /** 화면 설정(기기별, 기록과 따로 둔다) */
@@ -68,7 +75,7 @@ function read(): Data | null {
   if (raw === null) return empty();
   try {
     const d = JSON.parse(raw);
-    return { attempts: d.attempts ?? [], seconds: d.seconds ?? {} };
+    return { attempts: d.attempts ?? [], seconds: d.seconds ?? {}, ...(d.favorites && { favorites: d.favorites }) };
   } catch {
     return null;
   }
@@ -88,6 +95,12 @@ export const setSavedHandler = (f: () => void) => { onSaved = f; };
 
 /** 시도 하나를 기록한다 */
 export const record = (a: Attempt) => save((d) => d.attempts.push(a));
+
+/** 단원 즐겨찾기를 켜거나 끈다 */
+export const setFavorite = (id: string, on: boolean) => save((d) => { (d.favorites ??= {})[id] = { on, at: new Date().toISOString() }; });
+
+/** 즐겨찾기된 단원 id 목록 */
+export const favoriteIds = (): string[] => Object.entries(load().favorites ?? {}).filter(([, f]) => f.on).map(([id]) => id);
 
 export function save(update: (d: Data) => void) {
   const d = read();
@@ -122,6 +135,13 @@ export function merge(incoming: Partial<Data>): number {
     }
     d.attempts.sort((x, y) => x.at.localeCompare(y.at)); // 다른 기기의 옛 기록이 '최근'으로 집계되지 않게
     for (const [k, v] of Object.entries(incoming.seconds ?? {})) if (typeof v === 'number') d.seconds[k] = Math.max(d.seconds[k] ?? 0, v);
+    for (const [k, v] of Object.entries(incoming.favorites ?? {})) {
+      if (typeof v?.on !== 'boolean' || typeof v.at !== 'string') continue;
+      const cur = d.favorites?.[k];
+      if (cur && cur.at >= v.at) continue;
+      (d.favorites ??= {})[k] = { on: v.on, at: v.at };
+      added++;
+    }
   });
   return added;
 }

@@ -2,17 +2,17 @@ import './style.css';
 import { SETS, pickRandom, findProblem } from './engine/bank.ts';
 import { GOAL_SECONDS, addDays, dayKey, dayStatus, streak } from './engine/habit.ts';
 import { setCounting, startActivityClock } from './activity.ts';
-import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from './engine/curriculum.ts';
+import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, skill, trackLevelText } from './engine/curriculum.ts';
 import { computeProgress, isDue, sinceReset } from './engine/progress.ts';
 import { EST, wrongIds } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
-import { load, merge, setSaveFailHandler, setSettings, settings } from './store.ts';
+import { favoriteIds, load, merge, setSaveFailHandler, setSettings, settings } from './store.ts';
 import { SyncError, disconnect, startAutoSync, sync, syncState } from './sync.ts';
-import { app, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
+import { app, card, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
 import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
-import { matchPlan, startMatch, startPlacement } from './ui/match.ts';
+import { matchPlan, startFavorites, startMatch, startPlacement } from './ui/match.ts';
 import { skillsScreen } from './ui/skills.ts';
 
 // ───────── 홈 ─────────
@@ -25,6 +25,7 @@ function home() {
   const secs = d.seconds[today] ?? 0;
   const st = streak(d.attempts, d.seconds, today);
   const review = wrongIds(d.attempts).filter((id) => findProblem(id));
+  const favs = favoriteIds().filter((id) => skill(id));
   const p = computeProgress(sinceReset(d.attempts));
   const lv = Math.min(p.level, MAX_LEVEL);
   const inLevel = SKILLS.filter((s) => s.level === lv);
@@ -66,6 +67,9 @@ function home() {
     calendar(d, today),
     review.length
       ? card('오답 다시 풀기', `${review.length}문제 · 통과하면 목록에서 빠집니다`, () => startReview(), undefined, 'card review')
+      : '',
+    favs.length
+      ? card('즐겨찾기 연습', `${favs.length}단원 · 고른 단원을 돌아가며 풉니다`, () => startFavorites(home))
       : '',
     h('h2', { class: 'section' }, '자유 연습'),
     (() => {
@@ -125,12 +129,6 @@ function connectSync() {
   if (token) runSync(token);
 }
 nav.home = home;
-
-/** 홈 카드 하나 */
-function card(title: string, sub: string, onclick: () => void, progress?: number, cls = 'card') {
-  const meter = progress === undefined ? '' : h('div', { class: 'meter' }, h('i', { style: `width:${Math.round(progress * 100)}%` }));
-  return h('button', { class: cls, onclick }, h('strong', {}, title), h('em', { class: 'chev' }, '›'), h('span', {}, sub), meter);
-}
 
 /** 문제집: 2도~6도 고정 선율(기획 §7.1). 대련·단원 판정에 들어가지 않는 자유 연습 (기획 §M5.5) */
 function setsScreen() {

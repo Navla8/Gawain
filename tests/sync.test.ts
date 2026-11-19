@@ -32,7 +32,7 @@ globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
   return json(200, { files: gists[id].files });
 }) as typeof fetch;
 
-const { record, load, addSeconds } = await import('../src/store.ts');
+const { record, load, addSeconds, setFavorite, favoriteIds } = await import('../src/store.ts');
 const { sync, syncState, disconnect, SyncError } = await import('../src/sync.ts');
 const att = (i: number) => ({ at: `2026-11-1${i}T00:00:00Z`, problemId: `p${i}`, answer: [], pitchScore: 1, rhythmScore: 1, plays: 1, seconds: 1 });
 const on = (d: Map<string, string>) => (mem = d);
@@ -103,4 +103,23 @@ test('Gist가 지워졌으면 새로 만들고, 연결을 끊으면 토큰을 �
   disconnect();
   assert.deepEqual(syncState(), {});
   assert.equal(load().attempts.length, 1);
+});
+
+test('즐겨찾기 켜기·해제가 기기 사이에 동기화된다', async () => {
+  setFavorite('g1a', true);
+  await sync(TOKEN);
+  on(devices.pad);
+  assert.equal(await sync(TOKEN), 1);
+  assert.deepEqual(favoriteIds(), ['g1a']);
+  // 받기만 한 기기는 다시 올리지 않는다
+  calls = [];
+  await sync();
+  assert.deepEqual(calls, ['GET /gists/g1']);
+  // pad에서 해제하면 phone에도 해제가 반영된다
+  await new Promise((r) => setTimeout(r, 5));
+  setFavorite('g1a', false);
+  await sync();
+  on(devices.phone);
+  assert.equal(await sync(), 1);
+  assert.deepEqual(favoriteIds(), []);
 });

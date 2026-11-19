@@ -42,3 +42,24 @@ test('기록을 합친 뒤 시도는 시간순이다(M7)', async () => {
   merge({ attempts: [att(1), att(9)] });
   assert.deepEqual(load().attempts.map((a) => a.problemId), ['p1', 'p5', 'p9']);
 });
+
+test('즐겨찾기 저장과 합치기: 단원마다 늦은 쪽 우선(해제 전파 포함)', async () => {
+  const { setFavorite, favoriteIds, merge } = await import('../src/store.ts');
+  mem.delete('gawain.v1');
+  setFavorite('g1a', true);
+  assert.deepEqual(favoriteIds(), ['g1a']);
+  setFavorite('g1a', false);
+  assert.deepEqual(favoriteIds(), []);
+
+  // 늦은 쪽 우선: 로컬 해제(t2) vs 원격 켜짐(t1) -> 로컬 유지, 반환 0
+  mem.delete('gawain.v1');
+  merge({ favorites: { g1a: { on: false, at: '2026-11-19T02:00:00Z' }, d1a: { on: true, at: '2026-11-19T01:00:00Z' } } });
+  const changedOld = merge({ favorites: { g1a: { on: true, at: '2026-11-19T01:00:00Z' } } });
+  assert.equal(changedOld, 0);
+  assert.deepEqual(favoriteIds(), ['d1a']);
+
+  // 원격 해제(t3)가 더 늦으면 해제가 전파되고 바뀐 수 반환
+  const changedNew = merge({ favorites: { d1a: { on: false, at: '2026-11-19T03:00:00Z' }, r1: { on: true, at: '2026-11-19T03:00:00Z' } } });
+  assert.equal(changedNew, 2);
+  assert.deepEqual(favoriteIds(), ['r1']);
+});
