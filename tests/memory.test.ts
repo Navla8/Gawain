@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TRACKS, ladder, skill } from '../src/engine/curriculum.ts';
-import { computeProgress, blocker, fluentTime, FLUENT_TIME, type SkillAttempt } from '../src/engine/progress.ts';
+import { TRACKS, SKILLS, MAX_LEVEL, ladder, skill } from '../src/engine/curriculum.ts';
+import { computeProgress, blocker, frontier, fluentTime, FLUENT_TIME, type SkillAttempt } from '../src/engine/progress.ts';
 import { EST, planMatch, retryIds } from '../src/engine/session.ts';
 import { melodyItem, memoryItem, downbeats } from '../src/engine/melody.ts';
 import { findProblem } from '../src/engine/bank.ts';
@@ -192,4 +192,29 @@ test('능숙 시간(FLUENT_TIME.memory)과 예상 시간(EST.memory)', () => {
   assert.ok(EST.memory > 0 && EST.memory < EST.dictation);
   assert.ok(fluentTime('memory', 4, 'm1') < fluentTime('memory', 7, 'm4'));
   assert.ok(fluentTime('memory', 7, 'm4') < fluentTime('dictation', 14));
+});
+
+test('사이 단원(bridge): 기존 L3·L5 숙달 기록은 m1~m5·g2e·g5c 미숙달로 레벨이 떨어지지 않는다', () => {
+  const bridges = ['m1', 'm2', 'm3', 'm4', 'm5', 'g2e', 'g5c'];
+  for (const id of bridges) assert.equal(skill(id)?.bridge, true, `${id} bridge`);
+  for (const id of ['d0a', 'r1', 'g1a', 'g2d', 'g3f', 'g5b', 'h1']) assert.ok(!skill(id)?.bridge, `${id} non-bridge`);
+
+  // L0~L3 기존 단원 모두 숙달 + m1~m5·g2e 기록 없음 → 전체 레벨 4, 받아쓰기 유형 레벨 4 유지
+  const upToL3 = SKILLS.filter((s) => s.level <= 3 && !s.bridge).map((s) => s.id);
+  const p3 = computeProgress(masterAll(upToL3));
+  assert.equal(p3.level, 4);
+  assert.equal(p3.trackLevels.dictation, 4);
+  assert.equal(p3.trackLevels.memory, 1);
+  // bridge 단원은 지금 단원(frontier)과 대련에는 그대로 나온다
+  assert.equal(frontier(p3, 'dictation'), 'g2e');
+  assert.equal(frontier(p3, 'memory'), 'm1');
+  const plan = planMatch(p3, '2026-11-02');
+  assert.ok(plan.some((s) => s.track === 'dictation' && s.role === 'learn'));
+  assert.ok(plan.some((s) => s.track === 'memory' && s.role === 'learn'));
+
+  // L0~L5 기존 단원 모두 숙달 + bridge 미숙달 → 전체 레벨·받아쓰기 레벨 완료(MAX_LEVEL + 1) 유지
+  const allCore = SKILLS.filter((s) => !s.bridge).map((s) => s.id);
+  const p5 = computeProgress(masterAll(allCore));
+  assert.equal(p5.level, MAX_LEVEL + 1);
+  assert.equal(p5.trackLevels.dictation, MAX_LEVEL + 1);
 });

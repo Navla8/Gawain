@@ -199,7 +199,7 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
   const maxPlays = Math.min(ctx.plays ?? 2, p.plays ?? 2);
   let plays = maxPlays;
   let playing = false;
-  let done = false;
+  let graded: { answer: string[]; pitchScore: number; right: number } | undefined;
   const set = settings();
   const melodyClick = set.melodyClick && !ctx.exam;
 
@@ -228,7 +228,7 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
   }
 
   function choose(name: string) {
-    if (done) { playKey(choiceMidis[MAJOR_SOLFA.indexOf(name)]); return; }
+    if (graded) { playKey(choiceMidis[MAJOR_SOLFA.indexOf(name)]); return; }
     if (answer.length >= truth.length) return;
     answer.push(name);
     touch();
@@ -237,10 +237,11 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
   }
 
   function finish(giveUp = false) {
-    done = true;
+    if (graded) return;
     stopAll();
     const mine = giveUp ? [] : [...answer];
     const g = gradeDownbeats(truth, mine);
+    graded = { answer: mine, pitchScore: g.pitchScore, right: g.right };
     record({
       at: new Date().toISOString(), problemId: p.id, answer: mine,
       pitchScore: g.pitchScore, rhythmScore: 1,
@@ -258,13 +259,15 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
   }
 
   function draw() {
+    const done = !!graded;
+    const shown = graded ? graded.answer : answer;
     playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', done || (!playing && plays <= 0));
     playBtn.classList.toggle('stop', playing);
     scaleBtn.toggleAttribute('disabled', playing);
 
     slots.replaceChildren(...beats.map((b, i) => {
-      const a = answer[i];
+      const a = shown[i];
       const cls = done ? (a === b.name ? 'slot ok' : 'slot bad') : i === answer.length ? 'slot cur' : 'slot';
       return h('div', { class: cls },
         h('small', { class: 'bar-no' }, `${b.bar + 1}마디`),
@@ -274,11 +277,10 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
     }));
     pad.replaceChildren(...MAJOR_SOLFA.map((name) => h('button', { class: 'deg', onclick: () => choose(name) }, name)));
 
-    if (done) {
-      const g = gradeDownbeats(truth, answer);
-      const ok = passed({ pitchScore: g.pitchScore, rhythmScore: 1 });
+    if (graded) {
+      const ok = passed({ pitchScore: graded.pitchScore, rhythmScore: 1 });
       foot.replaceChildren(
-        h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '정답입니다' : `${beats.length}마디 중 ${g.right}마디`, h('span', {}, ' · 계이름을 누르면 해당 음이 재생됩니다')),
+        h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '정답입니다' : `${beats.length}마디 중 ${graded.right}마디`, h('span', {}, ' · 계이름을 누르면 해당 음이 재생됩니다')),
         h('div', { class: 'actions' },
           h('button', { class: 'half', onclick: () => { stopAll(); playNotes(p.notes, p.tempo); } }, '정답 듣기'),
           h('button', { class: 'half', onclick: () => { stopAll(); playNotes(beats.map((b) => ({ midi: b.midi, dur: TPB })), 72); } }, '강박만 듣기'),

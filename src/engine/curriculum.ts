@@ -12,6 +12,8 @@ export interface Skill {
   prereq?: string[];
   /** 이 단원 문항에 늘 들어 있는 같은 유형의 아래 단원. 이 단원을 맞히면 그 단원도 점검한 것으로 본다(기획 §M6.1) */
   covers?: string[];
+  /** 사이 단원(기획 §M10): 기존 사용자의 유형·전체 레벨을 뒤로 돌리지 않기 위해 레벨 계산에서 뺀다 */
+  bridge?: boolean;
 }
 
 export const TRACKS: { id: Track; name: string; short: string }[] = [
@@ -62,11 +64,11 @@ export const SKILLS: Skill[] = [
   { id: 'r4b', track: 'rhythm', level: 4, name: '6/8 안의 둘잇단', covers: ['r3c'] },
 
   // 선율 기억(기획 §M10.2): 기보 없는 따라 치기 → 강박 계이름 → 추출 청취. 받아쓰기 단원의 선수로 연결된다
-  { id: 'm1', track: 'memory', level: 1, name: '따라 치기 1마디', prereq: ['d0b'] },
-  { id: 'm2', track: 'memory', level: 1, name: '따라 치기 2마디', prereq: ['m1', 'd1b'] },
-  { id: 'm3', track: 'memory', level: 2, name: '강박 계이름', prereq: ['m2', 'r2a'] },
-  { id: 'm4', track: 'memory', level: 2, name: '추출 청취 4마디', prereq: ['m3'] },
-  { id: 'm5', track: 'memory', level: 2, name: '추출 청취 8마디', prereq: ['m4', 'g2e'] },
+  { id: 'm1', track: 'memory', level: 1, name: '따라 치기 1마디', prereq: ['d0b'], bridge: true },
+  { id: 'm2', track: 'memory', level: 1, name: '따라 치기 2마디', prereq: ['m1', 'd1b'], bridge: true },
+  { id: 'm3', track: 'memory', level: 2, name: '강박 계이름', prereq: ['m2', 'r2a'], bridge: true },
+  { id: 'm4', track: 'memory', level: 2, name: '추출 청취 4마디', prereq: ['m3'], bridge: true },
+  { id: 'm5', track: 'memory', level: 2, name: '추출 청취 8마디', prereq: ['m4', 'g2e'], bridge: true },
 
   // 6/8(r3c·g3a)·단조(g3b)·화성 기능별 계이름 단원은 위 단원에 늘 들어 있지 않아 covers가 없다. 따로 점검한다
   // covers는 위 단원 생성기가 그 요소를 95% 이상 넣는 쌍만 둔다(감사 H4). 도약·붓점 단원은 확률로만 들어가 따로 점검한다
@@ -78,7 +80,7 @@ export const SKILLS: Skill[] = [
   { id: 'g2b', track: 'dictation', level: 2, name: '딸림화음 도약', prereq: ['d2b', 'm3'], covers: ['g2a'] },
   { id: 'g2c', track: 'dictation', level: 2, name: '버금딸림화음 도약', prereq: ['d2c'] },
   { id: 'g2d', track: 'dictation', level: 2, name: '점4분음표', prereq: ['r2b', 'm4'] },
-  { id: 'g2e', track: 'dictation', level: 2, name: '8마디 (쉬운 선율)', covers: ['g1c'] },
+  { id: 'g2e', track: 'dictation', level: 2, name: '8마디 (쉬운 선율)', covers: ['g1c'], bridge: true },
   { id: 'g3a', track: 'dictation', level: 3, name: '6/8 겹박자', prereq: ['r3c'] },
   { id: 'g3b', track: 'dictation', level: 3, name: '단조', prereq: ['d3a', 'd3b'] },
   { id: 'g3c', track: 'dictation', level: 3, name: 'ii·vi·V7 도약', prereq: ['d3c'] },
@@ -90,7 +92,7 @@ export const SKILLS: Skill[] = [
   { id: 'g4b', track: 'dictation', level: 4, name: '딸림조 전조 (8마디)', prereq: ['d4b'] },
   { id: 'g4c', track: 'dictation', level: 4, name: '2성부 (선율 + 베이스)', prereq: ['h2b'] },
   { id: 'g5a', track: 'dictation', level: 5, name: '낮은음자리표 선율' },
-  { id: 'g5c', track: 'dictation', level: 5, name: '8마디 (재생 4회)', covers: ['g3f'] },
+  { id: 'g5c', track: 'dictation', level: 5, name: '8마디 (재생 4회)', covers: ['g3f'], bridge: true },
   { id: 'g5b', track: 'dictation', level: 5, name: '8마디 실전 (재생 3회)', covers: ['g5c'] },
   { id: 't5', track: 'dictation', level: 5, name: '곡 채보 (공개 곡)' },
 

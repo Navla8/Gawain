@@ -13,7 +13,8 @@ export const PASS = 0.8;
 export const FAST_PASS = 0.95;
 /** 포기급: 이 점수 미만은 연속 실패를 두 번으로 센다 */
 export const GIVE_UP = 0.4;
-/** 능숙으로 볼 재생 횟수 한도(첫 재생 포함). 실전 조건 점검 한도보다 같거나 적게 */
+/** 능숙으로 볼 재생 횟수 한도(첫 재생 포함). 실전 조건 점검 한도보다 같거나 적게.
+ *  memory는 2회(m4·m5 추출 청취의 최대 3회 중 2회 이하로 풀어야 능숙; m1·m2는 1회, m3는 2회) */
 export const FLUENT_PLAYS: Record<Track, number> = { degree: 1, rhythm: 2, memory: 2, dictation: 3, harmony: 1 };
 /** 능숙으로 볼 풀이 시간 = 기본 초 + 답 하나(음·화음)당 초. 재생 시간이 들어 있다. 실기기 기록으로 고친다.
  *  기억: 따라 치기·강박은 짧은 재생+즉시 입력([18, 3]), 추출(m4·m5)은 전체 선율 재생 뒤 2마디 기보라 받아쓰기의 절반 수준([35, 5]) */
@@ -203,9 +204,18 @@ function apply(skills: Record<string, SkillState>, a: SkillAttempt) {
 /** 이 유형에서 지금 익힐 단원: 숙달하지 않은 가장 쉬운 단원. 다른 유형에 막히지 않는다 */
 const firstOpen = (skills: Record<string, SkillState>, track: Track) => ladder(track).find((s) => !skills[s.id].mastered);
 
+/** 유형 레벨: 사이 단원(bridge)은 빼고 계산해 기존 사용자의 레벨이 뒤로 가지 않게 한다. 전부 bridge인 유형(memory)은 자체 사다리로 표시 */
+const levelOf = (skills: Record<string, SkillState>, track: Track) => {
+  const core = ladder(track).filter((s) => !s.bridge);
+  const pool = core.length ? core : ladder(track);
+  return pool.find((s) => !skills[s.id].mastered)?.level ?? MAX_LEVEL + 1;
+};
+
 function levels(skills: Record<string, SkillState>) {
-  const trackLevels = Object.fromEntries(TRACKS.map((t) => [t.id, firstOpen(skills, t.id)?.level ?? MAX_LEVEL + 1])) as Record<Track, number>;
-  return { trackLevels, level: Math.min(...Object.values(trackLevels)) };
+  const trackLevels = Object.fromEntries(TRACKS.map((t) => [t.id, levelOf(skills, t.id)])) as Record<Track, number>;
+  // 선율 기억(memory)은 사이 단원 묶음이라 전체 레벨 최소값에서 뺀다(기획 §M10.2)
+  const coreLevels = TRACKS.filter((t) => t.id !== 'memory').map((t) => trackLevels[t.id]);
+  return { trackLevels, level: Math.min(...coreLevels) };
 }
 
 /** 문제별 오답 수(만점 미만, placement·fix 제외, 포기급은 2)를 한 시도만큼 갱신하고 갱신 전·후 수를 돌려준다 */
