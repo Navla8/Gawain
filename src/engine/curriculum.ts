@@ -1,7 +1,7 @@
-// 커리큘럼: 레벨(L0~MAX_LEVEL) × 유형(계이름 듣기·리듬 받아쓰기·선율 받아쓰기·화성 듣기)의 단원 사다리 (기획 M3, §M7.4)
+// 커리큘럼: 레벨(L0~MAX_LEVEL) × 유형(계이름 듣기·리듬 받아쓰기·선율 기억·선율 받아쓰기·화성 듣기)의 단원 사다리 (기획 M3, §M7.4, §M10)
 // 유형마다 단원이 쉬운 것부터 어려운 것 순서로 놓인다. 숙달·복습·배치고사는 이 순서를 따른다.
 
-export type Track = 'degree' | 'rhythm' | 'dictation' | 'harmony';
+export type Track = 'degree' | 'rhythm' | 'memory' | 'dictation' | 'harmony';
 
 export interface Skill {
   id: string;
@@ -17,6 +17,7 @@ export interface Skill {
 export const TRACKS: { id: Track; name: string; short: string }[] = [
   { id: 'degree', name: '계이름 듣기', short: '계이름' },
   { id: 'rhythm', name: '리듬 받아쓰기', short: '리듬' },
+  { id: 'memory', name: '선율 기억', short: '기억' },
   { id: 'dictation', name: '선율 받아쓰기', short: '선율' },
   { id: 'harmony', name: '화성 듣기', short: '화성' },
 ];
@@ -26,11 +27,11 @@ export const trackLevelText = (l: number) => (l > MAX_LEVEL ? '완료' : `L${l}`
 
 export const LEVELS = [
   { level: 0, name: '조성감', goal: '으뜸음을 기준으로 도·레·미를 구분한다' },
-  { level: 1, name: '순차진행과 으뜸화음', goal: '장음계 순차진행과 도·미·솔 도약, 4분·2분음표, 3화음 성질' },
-  { level: 2, name: '주요 3화음과 8분음표', goal: '파·티 경향음, 딸림·버금딸림화음 도약, 8분·점4분음표, 종지·I·IV·V 진행' },
+  { level: 1, name: '순차진행과 으뜸화음', goal: '장음계 순차진행과 도·미·솔 도약, 4분·2분음표, 1~2마디 따라 치기, 3화음 성질' },
+  { level: 2, name: '주요 3화음과 8분음표', goal: '파·티 경향음, 딸림·버금딸림화음 도약, 8분·점4분음표, 강박·추출 청취, 쉬운 8마디, 종지·I·IV·V 진행' },
   { level: 3, name: '단조와 빠른 리듬', goal: '라 으뜸 단조, ii·vi·V7 도약, 16분음표·당김음·6/8·붙임줄, 못갖춘마디, 8마디 선율, 자리바꿈·V7·부3화음 진행' },
   { level: 4, name: '반음계와 전조', goal: '반음계 보조음·경과음, 부속화음, 셋잇단·둘잇단, 딸림조 전조, 2성부' },
-  { level: 5, name: '실전과 채보', goal: '낮은음자리표 선율, 8마디 실전 받아쓰기(재생 3회), 곡 채보' },
+  { level: 5, name: '실전과 채보', goal: '낮은음자리표 선율, 8마디 실전 받아쓰기(재생 4·3회), 곡 채보' },
 ] as const;
 
 /** 지금 풀 수 있는 마지막 레벨 */
@@ -60,28 +61,37 @@ export const SKILLS: Skill[] = [
   { id: 'r4a', track: 'rhythm', level: 4, name: '셋잇단 (8분·4분)' },
   { id: 'r4b', track: 'rhythm', level: 4, name: '6/8 안의 둘잇단', covers: ['r3c'] },
 
+  // 선율 기억(기획 §M10.2): 기보 없는 따라 치기 → 강박 계이름 → 추출 청취. 받아쓰기 단원의 선수로 연결된다
+  { id: 'm1', track: 'memory', level: 1, name: '따라 치기 1마디', prereq: ['d0b'] },
+  { id: 'm2', track: 'memory', level: 1, name: '따라 치기 2마디', prereq: ['m1', 'd1b'] },
+  { id: 'm3', track: 'memory', level: 2, name: '강박 계이름', prereq: ['m2', 'r2a'] },
+  { id: 'm4', track: 'memory', level: 2, name: '추출 청취 4마디', prereq: ['m3'] },
+  { id: 'm5', track: 'memory', level: 2, name: '추출 청취 8마디', prereq: ['m4', 'g2e'] },
+
   // 6/8(r3c·g3a)·단조(g3b)·화성 기능별 계이름 단원은 위 단원에 늘 들어 있지 않아 covers가 없다. 따로 점검한다
   // covers는 위 단원 생성기가 그 요소를 95% 이상 넣는 쌍만 둔다(감사 H4). 도약·붓점 단원은 확률로만 들어가 따로 점검한다
-  // 선율 받아쓰기: 대학 교재 순서(화성 기능), 한 단원에 새 요소 하나 (기획 §M5.2). 생성기는 engine/melody.ts
-  { id: 'g1a', track: 'dictation', level: 1, name: '도~솔 순차 (2마디)', prereq: ['d0b', 'r1'] },
-  { id: 'g1b', track: 'dictation', level: 1, name: '장음계 순차', prereq: ['d1a'], covers: ['g1a'] },
+  // 선율 받아쓰기: 대학 교재 순서(화성 기능), 한 단원에 새 요소 하나 (기획 §M5.2, §M10.3). 생성기는 engine/melody.ts
+  { id: 'g1a', track: 'dictation', level: 1, name: '도~솔 순차 (2마디)', prereq: ['d0b', 'r1', 'm1'] },
+  { id: 'g1b', track: 'dictation', level: 1, name: '장음계 순차', prereq: ['d1a', 'm2'], covers: ['g1a'] },
   { id: 'g1c', track: 'dictation', level: 1, name: '으뜸화음 도약', prereq: ['d1b'], covers: ['g1b'] },
   { id: 'g2a', track: 'dictation', level: 2, name: '8분음표', prereq: ['r2a'], covers: ['g1c'] },
-  { id: 'g2b', track: 'dictation', level: 2, name: '딸림화음 도약', prereq: ['d2b'], covers: ['g2a'] },
+  { id: 'g2b', track: 'dictation', level: 2, name: '딸림화음 도약', prereq: ['d2b', 'm3'], covers: ['g2a'] },
   { id: 'g2c', track: 'dictation', level: 2, name: '버금딸림화음 도약', prereq: ['d2c'] },
-  { id: 'g2d', track: 'dictation', level: 2, name: '점4분음표', prereq: ['r2b'] },
+  { id: 'g2d', track: 'dictation', level: 2, name: '점4분음표', prereq: ['r2b', 'm4'] },
+  { id: 'g2e', track: 'dictation', level: 2, name: '8마디 (쉬운 선율)', covers: ['g1c'] },
   { id: 'g3a', track: 'dictation', level: 3, name: '6/8 겹박자', prereq: ['r3c'] },
   { id: 'g3b', track: 'dictation', level: 3, name: '단조', prereq: ['d3a', 'd3b'] },
   { id: 'g3c', track: 'dictation', level: 3, name: 'ii·vi·V7 도약', prereq: ['d3c'] },
   { id: 'g3d', track: 'dictation', level: 3, name: '16분음표', prereq: ['r3a'] },
   { id: 'g3e', track: 'dictation', level: 3, name: '붓점·당김음', prereq: ['r3b'], covers: ['g3d'] },
   { id: 'g3g', track: 'dictation', level: 3, name: '못갖춘마디', covers: ['g3e'] },
-  { id: 'g3f', track: 'dictation', level: 3, name: '8마디', covers: ['g3e'] },
+  { id: 'g3f', track: 'dictation', level: 3, name: '8마디', prereq: ['m5'], covers: ['g3e'] },
   { id: 'g4a', track: 'dictation', level: 4, name: '반음계 선율', prereq: ['d4a'] },
   { id: 'g4b', track: 'dictation', level: 4, name: '딸림조 전조 (8마디)', prereq: ['d4b'] },
   { id: 'g4c', track: 'dictation', level: 4, name: '2성부 (선율 + 베이스)', prereq: ['h2b'] },
   { id: 'g5a', track: 'dictation', level: 5, name: '낮은음자리표 선율' },
-  { id: 'g5b', track: 'dictation', level: 5, name: '8마디 실전 (재생 3회)', covers: ['g3e'] },
+  { id: 'g5c', track: 'dictation', level: 5, name: '8마디 (재생 4회)', covers: ['g3f'] },
+  { id: 'g5b', track: 'dictation', level: 5, name: '8마디 실전 (재생 3회)', covers: ['g5c'] },
   { id: 't5', track: 'dictation', level: 5, name: '곡 채보 (공개 곡)' },
 
   // 화성 듣기(기획 §M7.4): 생성기는 engine/harmony.ts

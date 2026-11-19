@@ -1,4 +1,4 @@
-import { TPB, type Note, type SoundEvent } from './types.ts';
+import { TPB, barTicks, type Note, type Problem, type SoundEvent } from './types.ts';
 import { toEvents } from './score.ts';
 import { solfa, spell } from './theory.ts';
 
@@ -70,6 +70,43 @@ export function tally(rs: { items: GradeItem[] }[], rhythmOnly = false) {
     if (i.truth!.midi !== null) { pn++; if (i.verdict === 'ok' || i.verdict === 'rhythm') po++; }
   }
   return { pitchScore: pn ? po / pn : 1, rhythmScore: rn ? ro / rn : 1 };
+}
+
+/** 지정 마디 구간 [startBar, endBar)의 음표만 잘라낸다(기획 §M10.2 추출 청취) */
+export function sliceBars(notes: Note[], barLen: number, startBar: number, endBar: number): Note[] {
+  const from = startBar * barLen, to = endBar * barLen;
+  const out: Note[] = [];
+  let t = 0;
+  for (const n of notes) {
+    const s = Math.max(t, from), e = Math.min(t + n.dur, to);
+    if (e > s) out.push({ ...n, dur: e - s });
+    t += n.dur;
+  }
+  return out;
+}
+
+/** 따라 치기 채점(기획 §M10.2): 리듬을 무시하고 음높이 순서만 정렬 채점한다. 리듬 점수는 1 */
+export function gradePlayback(truthNotes: Note[], answerMidis: number[]): GradeResult {
+  const T: Note[] = toEvents(truthNotes).filter((e) => e.midi !== null).map((e) => ({ midi: e.midi, dur: TPB }));
+  const A: Note[] = answerMidis.map((midi) => ({ midi, dur: TPB }));
+  const r = grade(T, A);
+  return { items: r.items, pitchScore: r.pitchScore, rhythmScore: 1 };
+}
+
+/** 강박 계이름 채점(기획 §M10.2): 마디 첫 박 계이름 일치 비율. 리듬 점수는 1 */
+export function gradeDownbeats(truth: string[], answer: string[]): { pitchScore: number; rhythmScore: number; right: number; miss: string[] } {
+  let right = 0;
+  const miss: string[] = [];
+  truth.forEach((t, i) => {
+    if (answer[i] === t) right++;
+    else miss.push(t);
+  });
+  return { pitchScore: truth.length ? right / truth.length : 1, rhythmScore: 1, right, miss };
+}
+
+/** 추출 청취 채점(기획 §M10.2): 지정 마디 구간만 기존 받아쓰기 채점 */
+export function gradeExtract(p: Problem, answerNotes: Note[], range = p.extract!): GradeResult {
+  return grade(sliceBars(p.notes, barTicks(p), range[0], range[1]), answerNotes);
 }
 
 /** 음높이를 맞게 적은 음(ok·rhythm)은 정답 음의 표기 힌트(Note.spell)를 물려받아 같은 글자로 그려진다. 새 배열을 돌려준다 */

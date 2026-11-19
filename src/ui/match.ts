@@ -3,7 +3,7 @@ import { bestOf, blocker, classify, computeProgress, sinceReset, weakness, type 
 import { MAX_TOTAL, frontier, isExam, learnUnit, nextPlacement, placementLeft, planMatch, retryIds, stepDown, type Slot } from '../engine/session.ts';
 import { contentTags } from '../engine/grade.ts';
 import { degreeItem, rhythmItem } from '../engine/drills.ts';
-import { melodyItem, tuneItem } from '../engine/melody.ts';
+import { melodyItem, memoryItem, tuneItem } from '../engine/melody.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
 import { stopAll, playNotes } from '../audio/synth.ts';
@@ -12,6 +12,7 @@ import { app, h, header, nav } from './dom.ts';
 import { solve, type ItemCtx } from './dictation.ts';
 import { degreeScreen } from './degree.ts';
 import { harmonyScreen } from './harmony.ts';
+import { memoryScreen } from './memory.ts';
 import { harmonyItem } from '../engine/harmony.ts';
 
 // 대련(원터치 통합 테스트)과 배치고사 진행 (기획 M3)
@@ -38,8 +39,8 @@ export function matchPlan() {
   return { p, slots: planMatch(p, today, retryIds(attempts, today)) };
 }
 
-/** 실전 조건의 재생 횟수(기획 §M6.3): 받아쓰기·리듬 5 → 3, 계이름 3 → 2 */
-const EXAM_PLAYS = { degree: 2, rhythm: 3, dictation: 3, harmony: 2 };
+/** 실전 조건의 재생 횟수(기획 §M6.3): 받아쓰기·리듬 5 → 3, 기억 3 → 2(1회 단원은 1 유지), 계이름·화성 3 → 2 */
+const EXAM_PLAYS = { degree: 2, rhythm: 3, memory: 2, dictation: 3, harmony: 2 };
 
 /** 홈의 대련 버튼 */
 export function startMatch() {
@@ -57,8 +58,8 @@ export function startPlacement() {
     h('section', { class: 'intro' },
       h('p', { class: 'eyebrow' }, 'Placement'),
       h('h1', {}, again ? '실력을 다시 매겨요' : '어디서부터 시작할까요'),
-      h('p', {}, '계이름 듣기, 리듬 받아쓰기, 선율 받아쓰기, 화성 듣기를 번갈아 한 문제씩 풉니다. 정답 여부에 따라 난이도를 오르내리며 현재 실력에 맞는 레벨을 찾습니다.'),
-      h('p', {}, `약 13문항으로 10분 안팎이 걸립니다. 잘 모르는 문제는 ‘모르겠어요’를 눌러 건너뛸 수 있습니다. 통과한 단원은 숙달 처리되며 3일 뒤 첫 점검에서 다시 확인합니다.`),
+      h('p', {}, '계이름 듣기, 리듬 받아쓰기, 선율 기억, 선율 받아쓰기, 화성 듣기를 번갈아 한 문제씩 풉니다. 정답 여부에 따라 난이도를 오르내리며 현재 실력에 맞는 레벨을 찾습니다.'),
+      h('p', {}, `약 17문항으로 10분 안팎이 걸립니다. 잘 모르는 문제는 ‘모르겠어요’를 눌러 건너뛸 수 있습니다. 통과한 단원은 숙달 처리되며 3일 뒤 첫 점검에서 다시 확인합니다.`),
       h('button', { class: 'cta', onclick: () => next({ kind: 'placement', slots: [], i: 0, before: progressNow(), log: [] }) }, '시작'),
     ),
   );
@@ -164,9 +165,11 @@ function present(id: string, slot: Slot, ctx: ItemCtx) {
   // 지난 오답은 문제 id의 시드로 같은 문제를 다시 만든다. 새 문항은 약점 표식이 든 것을 골라 낸다(기획 §M6.2)
   const fixed = slot.problem ? Number(slot.problem.split('-')[2]) : undefined;
   const rhythmAt = (x: number) => rhythmItem(id, x);
+  const memoryAt = (x: number) => memoryItem(id, x, s.name);
   const melodyAt = (x: number) => melodyItem(id, x, s.name);
   if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weak), ctx);
   else if (s.track === 'harmony') harmonyScreen(harmonyItem(id, seed(), weak), ctx);
+  else if (s.track === 'memory') memoryScreen(fixed !== undefined ? memoryAt(fixed) : bestOf(memoryAt, (it) => contentTags(it.notes, it.fifths, false, it.minor), seed(), weak), ctx);
   else if (s.track === 'rhythm') solve(fixed !== undefined ? rhythmAt(fixed) : bestOf(rhythmAt, (it) => contentTags(it.notes, it.fifths, true), seed(), weak), { ...ctx, rhythm: true });
   else if (id === 't5') solve(tuneItem(fixed ?? seed()), ctx);
   else solve(fixed !== undefined ? melodyAt(fixed) : bestOf(melodyAt, (it) => contentTags(it.notes, it.fifths, false, it.minor), seed(), weak), ctx);

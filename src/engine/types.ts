@@ -32,6 +32,8 @@ export interface Problem {
   bass?: Note[];
   /** 재생 횟수(없으면 기본 5회) */
   plays?: number;
+  /** 추출 청취(기억 단원 m4·m5): 전체 선율을 듣되 이 마디 구간 [시작, 끝)(0부터)만 받아적는다 */
+  extract?: [number, number];
   /** 전조: 이 틱부터 으뜸음(도)이 바뀐다. 계이름·솔페지를 새 도로 읽는다(기획 §M7.5) */
   modulation?: { at: number; tonic: number };
   /** 4분음표 기준 BPM */

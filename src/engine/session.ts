@@ -6,9 +6,13 @@ export { frontier };
 
 /** 익히기 자리에 낼 단원: 그 유형의 지금 단원. 선수 단원이 남았으면 그 선수 단원 유형의 지금 단원(기획 §M5.5) */
 export function learnUnit(p: Progress, track: Track): string | undefined {
-  const id = frontier(p, track);
-  const b = id && blocker(p, id);
-  return b ? frontier(p, skill(b)!.track) : id;
+  let id = frontier(p, track);
+  for (let i = 0; i < TRACKS.length && id; i++) {
+    const b = blocker(p, id);
+    if (!b) return id;
+    id = frontier(p, skill(b)!.track);
+  }
+  return id;
 }
 
 // 대련(원터치 통합 테스트)과 배치고사의 문항 구성 (기획 M3)
@@ -25,7 +29,7 @@ export interface Slot {
 }
 
 /** 문항 하나에 드는 대략의 시간(초) */
-export const EST: Record<Track, number> = { degree: 25, rhythm: 45, dictation: 120, harmony: 30 };
+export const EST: Record<Track, number> = { degree: 25, rhythm: 45, memory: 45, dictation: 120, harmony: 30 };
 /** 한 판 목표 시간(약 9분)과 문항 수 한도 */
 export const BUDGET = 540;
 const MAX_ITEMS = 10;
@@ -96,12 +100,12 @@ function wrongAttempts(attempts: WrongAttempt[]): WrongAttempt[] {
 /** 오답 풀: 문제마다 가장 최근 시도(배치고사·고쳐 보기 제외)가 만점 미만이고 오답 수가 WRONG_DROP 미만인 문제 id, 최근 시도가 오래된 순(기획 §M9.1a) */
 export const wrongIds = (attempts: WrongAttempt[]): string[] => wrongAttempts(attempts).map((a) => a.problemId!);
 
-/** 대련에 다시 낼 지난 오답: 오답 풀 중 같은 문제를 다시 만들 수 있는 받아쓰기(mel-)·리듬(rhy-)이고 단원이 존재하며 최근 시도가 오늘 이전인 것 */
+/** 대련에 다시 낼 지난 오답: 오답 풀 중 같은 문제를 다시 만들 수 있는 받아쓰기(mel-)·리듬(rhy-)·기억(mem-)이고 단원이 존재하며 최근 시도가 오늘 이전인 것 */
 export function retryIds(attempts: WrongAttempt[], today: string): string[] {
   return wrongAttempts(attempts)
     .filter((a) => {
       const [kind, unit] = a.problemId!.split('-');
-      return (kind === 'mel' || kind === 'rhy') && !!skill(unit) && dayKey(new Date(a.at)) < today;
+      return (kind === 'mel' || kind === 'rhy' || kind === 'mem') && !!skill(unit) && dayKey(new Date(a.at)) < today;
     })
     .map((a) => a.problemId!);
 }

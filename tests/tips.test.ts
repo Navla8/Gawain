@@ -17,6 +17,8 @@ test('모든 유형에 solve 팁이 있고 받아쓰기·리듬에 pitch·rhythm
   assert.ok(TIPS.some((t) => t.when === 'rhythm' && (t.track === 'rhythm' || t.track === 'all')), 'rhythm rhythm 없음');
   assert.ok(TIPS.some((t) => t.when === 'pitch' && (t.track === 'degree' || t.track === 'all')), 'degree pitch 없음');
   assert.ok(TIPS.some((t) => t.when === 'pitch' && (t.track === 'harmony' || t.track === 'all')), 'harmony pitch 없음');
+  assert.ok(TIPS.filter((t) => t.track === 'memory' && t.when === 'solve').length >= 2, 'memory solve 2개 이상 필요');
+  assert.ok(TIPS.filter((t) => t.track === 'memory' && t.when === 'pitch').length >= 1, 'memory pitch 1개 이상 필요');
 });
 
 test('주제별 묶음과 교재 출처가 비어 있지 않고 이끈음은 티로 쓴다', () => {

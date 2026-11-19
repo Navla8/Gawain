@@ -1,5 +1,6 @@
 import { TPB, barTicks, timeSignature, type Note, type Problem } from '../engine/types.ts';
-import { durName, grade, inheritSpell, tally, missTags, type GradeItem, type GradeResult } from '../engine/grade.ts';
+import type { Track } from '../engine/curriculum.ts';
+import { durName, grade, inheritSpell, sliceBars, tally, missTags, type GradeItem, type GradeResult } from '../engine/grade.ts';
 import { barProblems } from '../engine/score.ts';
 import { noteName, solfa, keyName } from '../engine/theory.ts';
 import { passed } from '../engine/progress.ts';
@@ -35,6 +36,10 @@ export interface ItemCtx {
   exam?: boolean;
   /** 머리줄 뒤로 가기(없으면 홈). 실력 화면에서 연 단원 풀기는 실력 화면으로 */
   back?: () => void;
+  /** 추출 청취(기획 §M10.2): 전체 선율을 듣되 이 마디 구간 [시작, 끝)(0부터)만 받아적는다 */
+  extract?: [number, number];
+  /** 풀이·결과 요령 유형(기본: rhythm 또는 dictation) */
+  tipTrack?: Track;
 }
 
 const MAX_PLAYS = 5;
@@ -144,13 +149,18 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
 
   const len = barTicks(p);
   const offset = p.pickup ? len - p.pickup : 0;
+  const extract = ctx.extract ?? p.extract;
+  const startBar = extract ? extract[0] : 0;
+  const targetBars = extract ? extract[1] - extract[0] : p.bars;
+  const targetNotes = extract ? sliceBars(p.notes, len, extract[0], extract[1]) : p.notes;
+  const tipTrack: Track = ctx.tipTrack ?? (rhythm ? 'rhythm' : 'dictation');
   function draw() {
     playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', !playing && plays <= 0);
     playBtn.classList.toggle('stop', playing);
     if (scaleBtn) scaleBtn.toggleAttribute('disabled', playing);
     const staffOf = (vi: number) => renderStaff({
-      notes: vi === v ? notes : voices[vi], fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup,
+      notes: vi === v ? notes : voices[vi], fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: targetBars, pickup: p.pickup,
       clef: vi === 1 ? 'bass' : p.clef, solfege: !rhythm, key: keyRead(p), takadimi: true,
       ...(vi === v && { cursor, selected }),
       onTap: (i) => {
@@ -171,11 +181,12 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
 
     const used = notes.reduce((t, n) => t + n.dur, 0);
     const beat = p.beatTicks ?? TPB;
+    const rangeLabel = extract ? `${extract[0] + 1}~${extract[1]}마디` : `${p.bars}마디`;
     status.textContent = (two ? (v ? '아래 성부 · ' : '위 성부 · ') : '') + (selected !== null
       ? `${selected + 1}번째 음 선택됨 · ${rhythm ? '' : '건반·'}길이를 눌러 수정하세요`
-      : used >= p.bars * len
-        ? (used > p.bars * len ? `${p.bars}마디를 넘었어요` : `${p.bars}마디를 다 적었어요`)
-        : `${Math.floor(used / len) + 1}마디 ${+((used % len) / beat + 1).toFixed(2)}박째`);
+      : used >= targetBars * len
+        ? (used > targetBars * len ? `${rangeLabel}를 넘었어요` : `${rangeLabel}를 다 적었어요`)
+        : `${startBar + Math.floor(used / len) + 1}마디 ${+((used % len) / beat + 1).toFixed(2)}박째`);
 
     const toggle = (label: Node | string, on: boolean, onclick: () => void, title?: string) =>
       h('button', { class: on ? 'on' : '', onclick, 'aria-label': title ?? false }, label);
@@ -229,11 +240,11 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
     result(p, answers, rs, ctx);
   }
 
-  const truths = two ? [p.notes, p.bass!] : [p.notes];
+  const truths = two ? [p.notes, p.bass!] : [targetNotes];
   function submit() {
     voices[v] = notes;
     const mine = truths.map((_, i) => voices[i]);
-    const bad = mine.map((ns, i) => barProblems(ns, len, p.bars, offset).map((b) => (two ? (i ? '아래 ' : '위 ') : '') + b));
+    const bad = mine.map((ns, i) => barProblems(ns, len, targetBars, offset).map((b) => (two ? (i ? '아래 ' : '위 ') : '') + (b + startBar)));
     if (bad.flat().length && !confirm(`${bad.flat().join(', ')}마디의 박 수가 맞지 않습니다. 그대로 제출하시겠습니까?`)) return;
     finish(mine, truths.map((t, i) => grade(t, mine[i])));
   }
@@ -259,12 +270,15 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
     aim = () => keys.aim(truths[v].find((n) => n.midi !== null)!.midi! - 5);
   }
 
-  const first = p.notes.find((n) => n.midi !== null)!.midi!;
+  const first = targetNotes.find((n) => n.midi !== null)!.midi!;
   app.replaceChildren(
     header(p.title, ctx.step, ctx.back),
+    extract
+      ? h('p', { class: 'extract-cue' }, h('span', { class: 'tag' }, '추출 구간'), h('strong', {}, `${extract[0] + 1}~${extract[1]}마디만 적어요`), h('span', {}, `전체 ${p.bars}마디 재생`))
+      : '',
     h('p', { class: 'info' }, rhythm
       ? `${meterText(p)} · ${p.bars}마디 · 리듬만 적어요`
-      : `${keyName(p)} · ${meterText(p)} · ${p.bars}마디${p.pickup ? ' · 못갖춘마디(한 박)' : ''}${p.clef === 'bass' ? ' · 낮은음자리표' : ''} · 첫 음 ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)}`
+      : `${keyName(p)} · ${meterText(p)} · ${extract ? `${extract[0] + 1}~${extract[1]}마디` : `${p.bars}마디`}${p.pickup ? ' · 못갖춘마디(한 박)' : ''}${p.clef === 'bass' ? ' · 낮은음자리표' : ''} · ${extract ? '구간 첫 음' : '첫 음'} ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)}`
         + (two ? ` · 아래 성부 첫 음 ${solfa(p.bass![0].midi!, p.fifths)} ${noteName(p.bass![0].midi!, p.fifths)}` : '')),
     ctx.exam || !melodyClick || !keySound
       ? h('p', { class: 'info' }, [ctx.exam && `실전 조건 · 재생 ${maxPlays}회`, !melodyClick && '선율 중 메트로놈 없음', !keySound && '건반 소리 없음'].filter(Boolean).join(' · '))
@@ -279,7 +293,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
       ctx.placement ? h('button', { class: 'ghost', onclick: giveUp }, '모르겠어요') : '',
       h('button', { class: 'submit', onclick: submit }, '제출'),
     ),
-    ctx.placement ? '' : tipLine(nextTip(rhythm ? 'rhythm' : 'dictation', 'solve')),
+    ctx.placement ? '' : tipLine(nextTip(tipTrack, 'solve')),
   );
   draw();
   aim();
@@ -295,10 +309,15 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
   const rhythm = !!ctx.rhythm;
   const len = barTicks(p);
   const offset = p.pickup ? len - p.pickup : 0;
+  const extract = ctx.extract ?? p.extract;
+  const startBar = extract ? extract[0] : 0;
+  const targetBars = extract ? extract[1] - extract[0] : p.bars;
+  const targetNotes = extract ? sliceBars(p.notes, len, extract[0], extract[1]) : p.notes;
+  const tipTrack: Track = ctx.tipTrack ?? (rhythm ? 'rhythm' : 'dictation');
   const two = !!p.bass;
-  const truths = two ? [p.notes, p.bass!] : [p.notes];
-  /** 마디 이름: 못갖춘마디가 있으면 그 마디가 0 */
-  const barLabel = (b: number) => (offset ? (b ? `${b}마디` : '못갖춘마디') : `${b + 1}마디`);
+  const truths = two ? [p.notes, p.bass!] : [targetNotes];
+  /** 마디 이름: 못갖춘마디가 있으면 그 마디가 0, 추출 청취면 원곡 마디 번호 */
+  const barLabel = (b: number) => (offset ? (b ? `${b}마디` : '못갖춘마디') : `${b + startBar + 1}마디`);
   // 전조 뒤 음은 새 도(조표 하나 더 ♯ 쪽)로 읽는다(기획 §M7.5). 정답 음은 반음계 표기 힌트(Note.spell)를 따른다
   const name = (m: number | null, start = 0, prefer?: 1 | -1) => {
     if (m === null) return '쉼표';
@@ -334,7 +353,7 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
       return map;
     };
     const ansMap = bySrc((i) => i.answer), truthMap = bySrc((i) => i.truth);
-    const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: p.bars, pickup: p.pickup, clef: vi ? 'bass' as const : p.clef, solfege: !rhythm, key: keyRead(p), takadimi: true, modulation: p.modulation };
+    const staff = { fifths: p.fifths, beatsPerBar: p.beatsPerBar, beatTicks: p.beatTicks, bars: targetBars, pickup: p.pickup, clef: vi ? 'bass' as const : p.clef, solfege: !rhythm, key: keyRead(p), takadimi: true, modulation: p.modulation };
     const mine = renderStaff({
       ...staff, notes: inheritSpell(r.items, truthNotes, answer),
       color: (s) => COLORS[ansMap.get(s)?.verdict ?? 'extra'],
@@ -347,7 +366,7 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
     sheets.push(mine, truth);
     const errors = r.items.filter((i) => i.verdict !== 'ok').map((i) => {
       const ev = (i.truth ?? i.answer)!;
-      const b = Math.min(p.bars - (offset ? 0 : 1), Math.floor((ev.start + offset) / len));
+      const b = Math.min(targetBars - (offset ? 0 : 1), Math.floor((ev.start + offset) / len));
       const t = i.truth, a = i.answer;
       const text = i.verdict === 'missing' ? `빠진 음: ${name(t!.midi, t!.start, hint(t!))} ${durName(t!.dur)}`
         : i.verdict === 'extra' ? `남는 음: ${name(a!.midi, a!.start)} ${durName(a!.dur)}`
@@ -376,7 +395,7 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
     ),
     ctx.skill ? h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '통과' : '80%에 못 미쳤어요', ctx.placement ? '' : h('span', {}, ok ? '' : ' · 이 단원을 더 연습해요')) : '',
     // 마디 재생 순서(정답 → 내 답)와 같게 정답을 위에 둔다
-    h('h2', {}, '정답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.truth)),
+    h('h2', {}, extract ? `정답 (${extract[0] + 1}~${extract[1]}마디)` : '정답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.truth)),
     h('h2', {}, '내 답'), h('div', { class: 'staff-box' + (two ? ' two' : '') }, ...parts.map((x) => x.mine)),
     h('p', { class: 'legend' },
       h('span', { class: 'ok' }, '●'), ' ✓ 맞음 · ',
@@ -393,7 +412,7 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
     ),
     !perfect && !ctx.placement
       ? tipLine(nextTip(
-          rhythm ? 'rhythm' : 'dictation',
+          tipTrack,
           rhythm ? 'rhythm' : pitchScore < 1 && (rhythmScore === 1 || pitchScore <= rhythmScore) ? 'pitch' : 'rhythm',
         ))
       : '',

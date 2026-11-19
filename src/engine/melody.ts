@@ -1,6 +1,7 @@
-import { TPB, type Note, type Problem } from './types.ts';
+import { TPB, barTicks, type Note, type Problem } from './types.ts';
 import { rng } from './drills.ts';
-import { keyName } from './theory.ts';
+import { toEvents } from './score.ts';
+import { keyName, solfa } from './theory.ts';
 
 // 선율 받아쓰기 생성기 (기획 §M5). 대학 교재 순서대로 단원마다 새 요소를 하나씩만 넣는다.
 // 마디마다 화음을 먼저 정하고, 도약은 그 마디(또는 앞 마디) 화음의 구성음 사이에서만 한다.
@@ -27,6 +28,8 @@ const CELLS: Record<string, number[][]> = {
 const SIMPLE = ['r1', 'r2a', 'r2b', 'r3a', 'r3b'];
 /** 마지막 마디(마지막 음은 긴 음), 마디 길이(틱)별. 못갖춘마디면 마지막 마디가 한 박 짧다 */
 const ENDS: Record<number, number[][]> = { 48: [[12, 12, 24], [24, 24], [48]], 36: [[12, 24], [36]], 24: [[24]] };
+/** 1마디 따라 치기(m1): 4/4 한 마디에 3~5음이 고르게 나오도록(리듬 무시, 음 순서만 채점) */
+const ENDS_1: number[][] = [[12, 12, 24], [12, 12, 12, 12], [6, 6, 12, 24], [12, 6, 6, 24], [6, 6, 12, 12, 12]];
 const COMPOUND = [[18], [12, 6], [6, 6, 6], [6, 12]];
 const COMPOUND_END = [[18, 18], [36], [12, 6, 18]];
 
@@ -63,8 +66,12 @@ interface Unit {
   bass?: boolean;
   /** 2성부: 위 선율 아래에 화음 근음 베이스(낮은음자리표)를 붙인다 */
   bassLine?: boolean;
-  /** 재생 횟수(실전) */
+  /** 재생 횟수(실전·기억) */
   plays?: number;
+  /** 강박 계이름(m3): 모든 마디 첫 박에 쉼표가 아니라 음이 놓이게 한다 */
+  downbeatNote?: boolean;
+  /** 추출 청취(m4·m5): 받아적을 구간 길이(마디 수) */
+  extract?: number;
   /** 8마디: 5마디부터 딸림조(새 도 = 솔)로 전조. 걸음은 원조 칸으로 하고 뒤 악절의 화음·종지는 새 조(4칸 위)로 본다 */
   modulate?: boolean;
   /** 이 단원의 새 음높이 요소가 들어갔는지(음계 칸 열을 받는다) */
@@ -111,6 +118,8 @@ export const UNITS: Record<string, Unit> = {
     fresh: (m) => hasLeapIn(m, (a, b) => inChord('IV', a, b) && touches(a, b, [3, 5])),
   },
   g2d: { meters: M34, dense: 4, bars: 4, rhythm: 'r2b', freshRhythm: true, leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 8], keys: 3, tempo: 76 },
+  // M10 길이 사이 단원: g1c 내용을 8마디로(길이만 새 요소)
+  g2e: { meters: M34, dense: 3, bars: 8, rhythm: 'r1', leap: ['I'], progs: P_I, range: [-3, 7], keys: 2, tempo: 80, fresh: (m) => hasLeapIn(m, () => true) },
   g3a: { dense: 4, bars: 4, rhythm: '6/8', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 8], keys: 4, tempo: 84 },
   g3b: { meters: M34, dense: 4, bars: 4, rhythm: 'r2b', leap: ['I', 'IV', 'V'], progs: P_MINOR, range: [-3, 7], keys: 4, tempo: 76, minor: 1, minorLeap: ['I', 'IV', 'V'], minorProgs: P_MINOR },
   g3c: { meters: M34, dense: 4,
@@ -122,8 +131,10 @@ export const UNITS: Record<string, Unit> = {
   // L4(기획 §M7.5): 익숙한 리듬(점4분까지) 위에 새 요소 하나
   g4a: { meters: M34, dense: 4, bars: 4, rhythm: 'r2b', leap: ALL, progs: P_DIA, range: [-3, 9], keys: 3, tempo: 72, chromatic: true },
   g4c: { meters: M34, dense: 4, bars: 4, rhythm: 'r2a', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 8], keys: 3, tempo: 72, bassLine: true },
-  // L5(기획 §M7.6)
+  // L5(기획 §M7.6, §M10.3)
   g5a: { meters: M34, dense: 4, bars: 4, rhythm: 'r2b', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 8], keys: 3, tempo: 76, bass: true },
+  g5c: { meters: M34, dense: 4.5, bars: 8, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV, ...P_V], range: [-3, 9], keys: 4, tempo: 72, plays: 4,
+    minor: 0.25, minorLeap: ALL, minorProgs: [...P_MINOR, ['I', 'vi', 'ii', 'V'], ['I', 'IV', 'V7', 'I'], ['I', 'vi', 'V7', 'I']] },
   g5b: { meters: M34, dense: 4.5, bars: 8, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV, ...P_V], range: [-3, 9], keys: 4, tempo: 88, plays: 3,
     minor: 0.5, minorLeap: ALL, minorProgs: [...P_MINOR, ['I', 'vi', 'ii', 'V'], ['I', 'IV', 'V7', 'I'], ['I', 'vi', 'V7', 'I']] },
   g4b: { meters: M34, dense: 4, bars: 8, rhythm: 'r2b', leap: TRIADS, progs: [...P_V, ...P_IV], range: [-3, 11], keys: 3, tempo: 76, modulate: true },
@@ -131,6 +142,14 @@ export const UNITS: Record<string, Unit> = {
   g3g: { meters: M34, dense: 5, bars: 4, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV], range: [-3, 9], keys: 4, tempo: 72, pickup: true },
   g3f: { meters: M34, dense: 4.5, bars: 8, rhythm: 'r3b', leap: ALL, progs: [...P_DIA, ...P_IV, ...P_V], range: [-3, 9], keys: 4, tempo: 72, minor: 0.25,
     minorLeap: ALL, minorProgs: [...P_MINOR, ['I', 'vi', 'ii', 'V'], ['I', 'IV', 'V7', 'I'], ['I', 'vi', 'V7', 'I']] },
+
+  // 선율 기억 단원(기획 §M10.2): 기존 생성기 설정에서 마디 수·재생 횟수만 맞춘다
+  m1: { dense: 5, bars: 1, rhythm: 'r1', leap: [], progs: [['I']], range: [0, 4], keys: 2, tempo: 80, plays: 1 },
+  m2: { meters: M34, dense: 3.5, bars: 2, rhythm: 'r1', leap: ['I'], progs: P_I, range: [-3, 7], keys: 2, tempo: 80, plays: 1, fresh: (m) => leaps(m).some(([a, b]) => Math.abs(a - b) !== 7) },
+  m3: { meters: M34, dense: 4, bars: 4, rhythm: 'r2a', freshRhythm: true, leap: ['I'], progs: P_I, range: [-3, 7], keys: 3, tempo: 76, plays: 2, downbeatNote: true },
+  m4: { meters: M34, dense: 4, bars: 4, rhythm: 'r2a', leap: ['I', 'V'], progs: P_V, range: [-3, 8], keys: 3, tempo: 76, plays: 3, extract: 2,
+    fresh: (m) => hasLeapIn(m, (a, b) => inChord('V', a, b) && touches(a, b, [6, 1])) },
+  m5: { meters: M34, dense: 3, bars: 8, rhythm: 'r1', leap: ['I'], progs: P_I, range: [-3, 7], keys: 2, tempo: 80, plays: 3, extract: 2, fresh: (m) => hasLeapIn(m, () => true) },
 };
 
 /** 음계 칸 → 으뜸음에서 몇 반음. 단조에서 라로 올라가는 솔은 솔♯, 솔♯ → 라로 올라가는 파는 파♯(가락단음계 상행).
@@ -156,7 +175,7 @@ function rhythm(u: Unit, r: () => number, beats: number): Slot[] | undefined {
   for (let b = 0; b < u.bars; b++) {
     const cadence = b === u.bars - 1 || (u.bars === 8 && b === 3);
     const thisLen = barLen - (u.pickup && b === u.bars - 1 ? TPB : 0);
-    const bar = cadence ? pick(compound ? COMPOUND_END : ENDS[thisLen]) : [];
+    const bar = u.bars === 1 ? [...pick(ENDS_1)] : cadence ? [...pick(compound ? COMPOUND_END : ENDS[thisLen])] : [];
     let left = thisLen - bar.reduce((a, x) => a + Math.abs(x), 0);
     while (left > 0) {
       // 쉼표는 드물게, 첫 마디·종지 마디에는 넣지 않는다. 새 조각은 자주 고른다
@@ -170,6 +189,7 @@ function rhythm(u: Unit, r: () => number, beats: number): Slot[] | undefined {
       bar.unshift(...c);
       left -= c.reduce((a, x) => a + Math.abs(x), 0);
     }
+    if (u.downbeatNote && bar[0] < 0) return undefined;
     let t = 0;
     for (const d of bar) { out.push({ dur: d, bar: b, onset: t }); t += Math.abs(d); }
   }
@@ -304,11 +324,31 @@ function chromaticize(notes: Note[], slots: Slot[], tonic: number, beats: number
  *  드물게(8마디 4/4 약 0.02%) 만들지 못하는 시드는 다음 시드로 넘어가며, id에는 실제로 쓴 시드가 든다 */
 export function melodyItem(id: string, seed: number, name = id): Problem {
   for (let k = 0; ; k++) {
-    try { return buildMelody(id, seed + k, name); } catch (e) { if (k >= 50) throw e; }
+    try { return buildMelody(id, seed + k, name, 'mel'); } catch (e) { if (k >= 50) throw e; }
   }
 }
 
-function buildMelody(id: string, seed: number, name: string): Problem {
+/** 선율 기억 단원(m1~m5) 한 문제. id는 mem-단원-시드이며 findProblem()이 시드로 다시 만든다 */
+export function memoryItem(id: string, seed: number, name = id): Problem {
+  for (let k = 0; ; k++) {
+    try { return buildMelody(id, seed + k, name, 'mem'); } catch (e) { if (k >= 50) throw e; }
+  }
+}
+
+/** 마디마다 첫 박(강박)에 놓인 음의 MIDI와 라 기반 상대 계이름(기획 §M10.2 m3 강박 계이름) */
+export function downbeats(p: Problem): { bar: number; midi: number; name: string }[] {
+  const len = barTicks(p);
+  const ev = toEvents(p.notes);
+  const out: { bar: number; midi: number; name: string }[] = [];
+  for (let b = 0; b < p.bars; b++) {
+    const at = b * len;
+    const hit = ev.find((e) => e.start === at && e.midi !== null);
+    if (hit) out.push({ bar: b, midi: hit.midi!, name: solfa(hit.midi!, p.fifths, { minor: p.minor }) });
+  }
+  return out;
+}
+
+function buildMelody(id: string, seed: number, name: string, prefix: 'mel' | 'mem'): Problem {
   const u0 = UNITS[id];
   const r = rng(seed);
   const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
@@ -366,13 +406,21 @@ function buildMelody(id: string, seed: number, name: string): Problem {
 
   const { notes, tonic, bass } = best;
   const compound = u.rhythm === '6/8';
+  let extract: [number, number] | undefined;
+  if (u.extract) {
+    const extR = rng(seed ^ 0x27d4eb2d);
+    const windows = Math.floor(u.bars / u.extract);
+    const start = Math.floor(extR() * windows) * u.extract;
+    extract = [start, start + u.extract];
+  }
   return {
-    id: `mel-${id}-${seed}`,
+    id: `${prefix}-${id}-${seed}`,
     title: `${name} · ${keyName({ tonic, fifths, minor })}`,
     tonic, ...(minor && { minor: true }), fifths,
     beatsPerBar: beats, ...(compound && { beatTicks: 18 }), ...(u.pickup && { pickup: TPB }),
     ...(u.modulate && { modulation: { at: 4 * beats * TPB, tonic: tonic + 7 } }),
     ...(u.bass && { clef: 'bass' as const }), ...(u.plays && { plays: u.plays }),
+    ...(extract && { extract }),
     ...(bass && { bass }),
     bars: u.bars, tempo: u.tempo, notes,
   };

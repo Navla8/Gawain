@@ -20,16 +20,16 @@ test('처음에는 받아쓰기의 선수 단원(계이름 도~솔, 리듬 4분�
 });
 
 test('선수 단원을 다 익히면 받아쓰기가 열리고, 다음 받아쓰기 단원은 그 선수 단원을 기다린다', () => {
-  const p = computeProgress(masterAll(['d0a', 'd0b', 'r1', 'g1a']));
+  const p = computeProgress(masterAll(['d0a', 'd0b', 'r1', 'm1', 'g1a']));
   assert.equal(frontier(p, 'dictation'), 'g1b');
-  assert.equal(learnUnit(p, 'dictation'), 'd1a'); // g1b는 계이름 장음계 순차(d1a)가 먼저
-  const q = computeProgress(masterAll(['d0a', 'd0b', 'd1a', 'r1', 'g1a']));
+  assert.equal(learnUnit(p, 'dictation'), 'd1a'); // g1b는 계이름 장음계 순차(d1a)·따라 치기 2마디(m2)가 먼저
+  const q = computeProgress(masterAll(['d0a', 'd0b', 'd1a', 'd1b', 'r1', 'm1', 'm2', 'g1a']));
   assert.equal(learnUnit(q, 'dictation'), 'g1b');
   assert.equal(planMatch(q, '2026-11-01').filter((s) => s.track === 'dictation').length, 3);
 });
 
 test('한 판은 받아쓰기 3문제 + 짧은 문항으로 약 9분', () => {
-  const p = computeProgress(masterAll(['d0a', 'd0b', 'r1']));
+  const p = computeProgress(masterAll(['d0a', 'd0b', 'r1', 'm1']));
   const plan = planMatch(p, '2026-11-01');
   assert.equal(plan.filter((s) => s.track === 'dictation').length, 3);
   const time = plan.reduce((a, s) => a + EST[s.track], 0);
@@ -173,18 +173,19 @@ test('모두 숙달하고 점검할 것도 없으면 가장 어려운 단원으�
 });
 
 test('배치고사: 유형마다 이분 탐색해 끝난다', () => {
-  // 실력: 계이름 d2b까지, 리듬 r1까지, 받아쓰기 g1c까지 한다고 가정
-  const can: Record<string, number> = { degree: 5, rhythm: 0, dictation: 2, harmony: 1 };
+  // 실력: 계이름 d2b까지, 리듬 r1까지, 기억 m2까지, 받아쓰기 g1c까지, 화성 h2a까지 한다고 가정
+  const can: Record<string, number> = { degree: 5, rhythm: 0, memory: 1, dictation: 2, harmony: 1 };
   const results: { skill: string; ok: boolean }[] = [];
   for (let slot = nextPlacement(results); slot; slot = nextPlacement(results)) {
     const i = ladder(slot.track).findIndex((s) => s.id === slot!.skill);
     results.push({ skill: slot.skill!, ok: i <= can[slot.track] });
-    assert.ok(results.length < 15);
+    assert.ok(results.length < 20);
   }
-  assert.ok(results.length <= 14, `${results.length}문항`);
+  assert.ok(results.length <= 19, `${results.length}문항`);
   const p = computeProgress(results.map((r) => ({ at: at(0), skill: r.skill, placement: true, pitchScore: r.ok ? 1 : 0, rhythmScore: 1 })));
   assert.ok(p.skills.d2b.mastered && !p.skills.d2c.mastered);
   assert.ok(p.skills.r1.mastered && !p.skills.r2a.mastered);
+  assert.ok(p.skills.m2.mastered && !p.skills.m3.mastered);
   assert.ok(p.skills.g1c.mastered && !p.skills.g2a.mastered);
   assert.ok(p.skills.h2a.mastered && !p.skills.h2b.mastered);
   // 유형을 돌아가며 낸다
@@ -192,15 +193,15 @@ test('배치고사: 유형마다 이분 탐색해 끝난다', () => {
 });
 
 test('배치고사 남은 문항 수', () => {
-  assert.ok(placementLeft([]) >= 11 && placementLeft([]) <= 16);
+  assert.ok(placementLeft([]) >= 15 && placementLeft([]) <= 20);
   const all = (ok: boolean) => { const r: { skill: string; ok: boolean }[] = []; for (let s = nextPlacement(r); s; s = nextPlacement(r)) r.push({ skill: s.skill!, ok }); return r.length; };
   assert.ok(placementLeft([]) >= all(true));
 });
 
 test('짧은 문항은 약한 유형에 더 많이, 그래도 두 유형 모두', () => {
   // 계이름 지금 단원은 최근 다 틀리고, 리듬은 다 맞힘
-  // 받아쓰기 선수 단원(d0b·r1)은 숙달해 둔다(선수 단원 가중치가 끼지 않게)
-  const base = masterAll(['d0a', 'd0b', 'r1']);
+  // 받아쓰기 선수 단원(d0b·r1·m1)은 숙달해 둔다(선수 단원 가중치가 끼지 않게)
+  const base = masterAll(['d0a', 'd0b', 'r1', 'm1']);
   const weak = [0, 1, 2, 3].map(() => ({ at: at(1), skill: 'd1a', pitchScore: 0, rhythmScore: 1 }));
   const good = [0, 1].map(() => ({ at: at(1), skill: 'r2a', pitchScore: 1, rhythmScore: 1 }));
   const plan = planMatch(computeProgress([...base, ...weak, ...good]), '2026-11-02');
@@ -209,7 +210,7 @@ test('짧은 문항은 약한 유형에 더 많이, 그래도 두 유형 모두'
 });
 
 test('지금 단원이 약함(점검에서 잊음)이면 짧은 문항을 더 받는다', () => {
-  const base = masterAll(['d0a', 'd0b', 'r1']);
+  const base = masterAll(['d0a', 'd0b', 'r1', 'm1']);
   // 계이름 d1a: 숙달(능숙 3) 뒤 점검에서 잊음 → 최근 [1,1,1,0] 75%, 약함. 리듬 r2a: 능숙·능숙·실패·능숙·통과·실패 [1,1,0,1,0.5,0] 58%, 익히는 중(능숙은 실패로 깎여 1)
   // 통과율만 보면 리듬이 더 약하지만, 잊은 단원에 가중치가 더 붙어 계이름이 더 많이 나온다
   const d1a = [0, 0, 1].map((d) => ({ at: at(d), skill: 'd1a', pitchScore: 1, rhythmScore: 1 }));
@@ -220,9 +221,15 @@ test('지금 단원이 약함(점검에서 잊음)이면 짧은 문항을 더 �
   assert.ok(n('degree') > n('rhythm'), `계이름 ${n('degree')} 리듬 ${n('rhythm')}`);
 });
 
-test('covers는 생성기가 95% 이상 넣는 쌍만 남긴다(H4)', () => {
-  const drop: [string, string][] = [['g2c', 'g2b'], ['g2d', 'g2c'], ['g3c', 'g2d'], ['g3d', 'g3c'], ['g4a', 'g3c'], ['r2b', 'r2a'], ['r3a', 'r2b'], ['r3b', 'r3a'], ['r4a', 'r3b']];
+test('covers는 생성기가 95% 이상 넣는 쌍만 남긴다(H4, M10)', () => {
+  const drop: [string, string][] = [
+    ['g2c', 'g2b'], ['g2d', 'g2c'], ['g3c', 'g2d'], ['g3d', 'g3c'], ['g4a', 'g3c'],
+    ['r2b', 'r2a'], ['r3a', 'r2b'], ['r3b', 'r3a'], ['r4a', 'r3b'],
+    ['g3f', 'g2e'], ['m2', 'm1'], ['m5', 'm4'],
+  ];
   for (const [up, down] of drop) assert.ok(!within(up).includes(down), `${up} ⊅ ${down}`);
-  const keep: [string, string][] = [['g2b', 'g2a'], ['g3e', 'g3d'], ['g3f', 'g3e'], ['g5b', 'g3e'], ['r4b', 'r3c']];
+  const keep: [string, string][] = [
+    ['g2b', 'g2a'], ['g2e', 'g1c'], ['g3e', 'g3d'], ['g3f', 'g3e'], ['g5c', 'g3f'], ['g5b', 'g5c'], ['g5b', 'g3e'], ['r4b', 'r3c'],
+  ];
   for (const [up, down] of keep) assert.ok(within(up).includes(down), `${up} ⊃ ${down}`);
 });

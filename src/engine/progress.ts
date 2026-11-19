@@ -14,9 +14,11 @@ export const FAST_PASS = 0.95;
 /** 포기급: 이 점수 미만은 연속 실패를 두 번으로 센다 */
 export const GIVE_UP = 0.4;
 /** 능숙으로 볼 재생 횟수 한도(첫 재생 포함). 실전 조건 점검 한도보다 같거나 적게 */
-export const FLUENT_PLAYS: Record<Track, number> = { degree: 1, rhythm: 2, dictation: 3, harmony: 1 };
-/** 능숙으로 볼 풀이 시간 = 기본 초 + 답 하나(음·화음)당 초. 재생 시간이 들어 있다. 실기기 기록으로 고친다 */
-export const FLUENT_TIME: Record<Track, [number, number]> = { degree: [10, 2.5], rhythm: [20, 3], dictation: [40, 6], harmony: [12, 3] };
+export const FLUENT_PLAYS: Record<Track, number> = { degree: 1, rhythm: 2, memory: 2, dictation: 3, harmony: 1 };
+/** 능숙으로 볼 풀이 시간 = 기본 초 + 답 하나(음·화음)당 초. 재생 시간이 들어 있다. 실기기 기록으로 고친다.
+ *  기억: 따라 치기·강박은 짧은 재생+즉시 입력([18, 3]), 추출(m4·m5)은 전체 선율 재생 뒤 2마디 기보라 받아쓰기의 절반 수준([35, 5]) */
+export const FLUENT_TIME: Record<Track, [number, number]> = { degree: [10, 2.5], rhythm: [20, 3], memory: [18, 3], dictation: [40, 6], harmony: [12, 3] };
+const EXTRACT_FLUENT_TIME: [number, number] = [35, 5];
 /** 능숙 몇 번이면 숙달. 처음 익힐 때는 그중 하나가 다른 날이어야 한다. 잊었거나 되돌아와 다시 익힐 때는 더 빨리 돌아온다 */
 export const MASTER_STREAK = 3;
 export const RELEARN_STREAK = 2;
@@ -105,7 +107,10 @@ export const passed = (a: Pick<SkillAttempt, 'pitchScore' | 'rhythmScore'>) => a
 export const sinceReset = <T extends { at: string }>(attempts: T[]) => attempts.filter((a) => a.at >= PROGRESS_FROM);
 
 /** 문항 크기(답 하나 = 음·계이름·화음 하나)로 정한 능숙 시간 한도(초) */
-export const fluentTime = (track: Track, size: number) => FLUENT_TIME[track][0] + FLUENT_TIME[track][1] * size;
+export const fluentTime = (track: Track, size: number, skillId?: string) => {
+  const [base, per] = track === 'memory' && (skillId === 'm4' || skillId === 'm5') ? EXTRACT_FLUENT_TIME : FLUENT_TIME[track];
+  return base + per * size;
+};
 
 export type Grade = 'fluent' | 'pass' | 'fail' | 'giveup';
 
@@ -115,7 +120,7 @@ export function attemptGrade(a: Omit<SkillAttempt, 'at'>, track: Track): Grade {
   if (score < GIVE_UP) return 'giveup';
   if (score < PASS) return 'fail';
   const size = Math.max(a.answer?.length ?? 0, a.answerBass?.length ?? 0, 1);
-  const quick = (a.plays ?? 0) <= FLUENT_PLAYS[track] && (a.seconds ?? 0) <= fluentTime(track, size);
+  const quick = (a.plays ?? 0) <= FLUENT_PLAYS[track] && (a.seconds ?? 0) <= fluentTime(track, size, a.skill);
   return score >= FAST_PASS && quick ? 'fluent' : 'pass';
 }
 
@@ -222,7 +227,7 @@ export function stepWrongCount(
 
 const problemUnit = (a: Pick<SkillAttempt, 'skill' | 'problemId'>): string | undefined => {
   if (a.skill && skill(a.skill)) return a.skill;
-  const m = a.problemId?.match(/^(?:mel|rhy|tun|deg|har)-([^-]+)-/);
+  const m = a.problemId?.match(/^(?:mel|rhy|tun|deg|har|mem)-([^-]+)-/);
   return m && skill(m[1]) ? m[1] : undefined;
 };
 
@@ -253,8 +258,14 @@ export function computeProgress(attempts: SkillAttempt[]): Progress {
 /** 이 유형에서 지금 익힐 단원 id */
 export const frontier = (p: Progress, track: Track) => firstOpen(p.skills, track)?.id;
 
-/** 이 단원의 선수 단원 중 아직 숙달하지 않은 첫 단원(기획 §M5.1-2) */
-export const blocker = (p: Progress, id: string) => skill(id)!.prereq?.find((x) => !p.skills[x].mastered);
+/** 이 단원의 선수 단원 중 아직 숙달하지 않은 첫 단원(기획 §M5.1-2, §M10.2).
+ *  이미 연 받아쓰기 단원(시도·숙달·되돌림 기록 있음)은 새로 붙은 선율 기억 선수 때문에 잠그지 않는다 */
+export function blocker(p: Progress, id: string): string | undefined {
+  const s = skill(id)!;
+  const st = p.skills[id];
+  const opened = s.track === 'dictation' && (st.tries > 0 || st.mastered || st.stepped || st.lapsed);
+  return s.prereq?.find((x) => !p.skills[x].mastered && !(opened && skill(x)?.track === 'memory'));
+}
 
 const isWeak = (st: SkillState) => !st.mastered
   && (st.lapsed || (st.recent.length >= WEAK_MIN && st.recent.reduce((a, b) => a + b, 0) / st.recent.length < WEAK_RATE));

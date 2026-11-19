@@ -1,7 +1,7 @@
 import data from '../data/bank.json' with { type: 'json' };
 import type { Problem } from './types.ts';
 import { skill } from './curriculum.ts';
-import { melodyItem, tuneItem, UNITS } from './melody.ts';
+import { melodyItem, memoryItem, tuneItem, UNITS } from './melody.ts';
 
 // 기본 문제집: 이졸데의 2도~6도 4마디 선율 데이터 (기획 §7.1)
 const TEMPO: Record<string, number> = { '2nd': 80, '3rd': 76, '4th': 76, '5th': 76, '6th': 60 };
@@ -29,10 +29,11 @@ export function pickRandom(count: number, last: number | undefined, rand: () => 
   return last !== undefined && i >= last ? i + 1 : i;
 }
 
-/** 문제 id로 문제를 찾는다. 대련의 생성 선율(mel-단원-시드)은 시드로 다시 만든다 */
+/** 문제 id로 문제를 찾는다. 대련의 생성 선율(mel-단원-시드)·기억(mem-단원-시드)은 시드로 다시 만든다 */
 export function findProblem(id: string): Problem | undefined {
   const [kind, unit, seed] = id.split('-');
   if (kind === 'mel') return UNITS[unit] ? melodyItem(unit, Number(seed), skill(unit)?.name) : undefined;
+  if (kind === 'mem') return UNITS[unit] ? memoryItem(unit, Number(seed), skill(unit)?.name) : undefined;
   if (kind === 'tun') return tuneItem(Number(seed));
   for (const s of SETS) {
     const p = s.problems.find((x) => x.id === id);

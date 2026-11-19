@@ -327,6 +327,42 @@ export const TIPS: Tip[] = [
     body: '긴 선율이나 실제 곡 채보에서는 1~2마디와 5~6마디가 같거나 비슷하게 반복되는 경우가 많습니다. 첫 재생에서 앞뒤 악구(4+4마디)의 반복과 종지 차이를 먼저 살피면 새로 적어야 할 분량이 크게 줄어듭니다.',
     source: 'Karpinski, Manual for Ear Training and Sight Singing · Chenette, Foundations of Aural Skills',
   },
+  {
+    id: 'mem-s1',
+    track: 'memory',
+    topic: '기억',
+    when: 'solve',
+    title: '음계·화음 음형을 이름으로 묶어 청크 도서관 넓히기',
+    body: '작업기억은 서로 무관한 음을 한 번에 몇 개밖에 담지 못합니다. 순차 조각이나 으뜸·딸림화음 아르페지오처럼 자주 들리는 음형을 한 덩어리(청크)로 묶어 기억하세요.',
+    source: 'Chenette, Foundations of Aural Skills · Karpinski, Aural Skills Acquisition · Miller (1956) 논문',
+  },
+  {
+    id: 'mem-s2',
+    track: 'memory',
+    topic: '기억',
+    when: 'solve',
+    title: '목표 구간이 끝나면 뒤 소리는 흘려보내는 추출 청취',
+    body: '4~8마디 선율에서 정해진 2마디만 적을 때는 그 구간에만 주의를 모으고, 구간이 끝난 뒤 이어지는 소리는 기억을 방해하지 않게 의식적으로 흘려보낸 뒤 바로 적으세요.',
+    source: 'Karpinski, Aural Skills Acquisition · Chenette, Foundations of Aural Skills',
+  },
+  {
+    id: 'mem-s3',
+    track: 'memory',
+    topic: '기억',
+    when: 'solve',
+    title: '마디 첫 강박의 계이름부터 박자 격자에 고정하기',
+    body: '조성 선율에서는 화음의 안정된 골격음이 마디 첫 강박에 놓이는 경우가 많습니다. 박자를 따라가며 마디마다 강박의 계이름을 먼저 붙잡아 두세요.',
+    source: 'Karpinski, Manual for Ear Training and Sight Singing · Chenette, Foundations of Aural Skills',
+  },
+  {
+    id: 'mem-p1',
+    track: 'memory',
+    topic: '기억',
+    when: 'pitch',
+    title: '기억하는 동안 소리 내어 부르지 말고 속으로 떠올리기',
+    body: '들은 선율을 기억하는 동안 소리 내어 노래하면 부정확한 가창이 원래 기억에 간섭할 수 있으니 조용히 속으로 떠올려 보세요. Pembrook (1987) 실험에서도 침묵을 유지한 집단보다 소리 내어 노래한 집단의 기억 보존 점수가 낮았습니다.',
+    source: 'Pembrook (1987) 논문 · Karpinski, Aural Skills Acquisition',
+  },
 
   // ───────── 매일 연습 ─────────
   {
