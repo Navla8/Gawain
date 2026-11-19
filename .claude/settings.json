@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "PY=$(command -v python3 || command -v python); \"$PY\" \"$HOME/.claude/hooks/harness_gate.py\" snapshot" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "PY=$(command -v python3 || command -v python); \"$PY\" \"$HOME/.claude/hooks/harness_gate.py\" check 'npm run check'", "timeout": 300 }] }]
+  },
+  "permissions": { "allow": ["Bash(npm run check)"] }
+}
