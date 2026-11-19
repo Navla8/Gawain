@@ -5,6 +5,7 @@ import { setCounting, touch } from '../activity.ts';
 import { record } from '../store.ts';
 import { app, h, header } from './dom.ts';
 import type { ItemCtx } from './dictation.ts';
+import { nextTip, tipLine } from './tips.ts';
 
 // 화성 듣기 (기획 §M7.4): 3화음 성질·종지는 한 번 고르고, 진행은 첫 화음(으뜸화음)을 빼고 차례로 로마 숫자를 고른다.
 // 답하는 동안 버튼은 소리를 내지 않는다(계이름 듣기와 같은 까닭).
@@ -26,6 +27,7 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' + (it.given ? '' : ' wide') });
   const foot = h('div', { class: 'degree-foot' });
+  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement ? '' : tipLine(nextTip('harmony', 'solve')));
 
   const sound = () => playChords(it.chords, it.arpeggio);
   function listen() {
@@ -64,6 +66,7 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
       ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }),
     });
     ctx.onGraded?.(passed({ pitchScore: score, rhythmScore: 1 }));
+    tipSlot.replaceChildren(...(!ctx.placement && score < 1 ? [tipLine(nextTip('harmony', 'pitch'))] : []));
     draw();
   }
 
@@ -109,6 +112,7 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
     slots,
     pad,
     foot,
+    tipSlot,
   );
   draw();
 }

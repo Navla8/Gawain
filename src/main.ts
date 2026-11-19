@@ -14,6 +14,7 @@ import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
 import { matchPlan, startFavorites, startMatch, startPlacement } from './ui/match.ts';
 import { skillsScreen } from './ui/skills.ts';
+import { tipsScreen } from './ui/tips.ts';
 
 // ───────── 홈 ─────────
 
@@ -78,6 +79,7 @@ function home() {
       return card('문제집', `${SETS.map((s) => s.name).join('·')} ${ALL.length}문제 · ${solved}문제 풀어 봄`, setsScreen, solved / ALL.length);
     })(),
     card('피아노 룸', '들은 멜로디를 건반으로 바로 연주 · 채점·기록 없음', pianoRoom),
+    card('요령', '받아쓰기·계이름·화성 듣기 방법', tipsScreen),
     (() => {
       const s = settings();
       const toggle = (label: string, key: 'minorDo' | 'melodyClick' | 'keySound', on: string, off: string) =>

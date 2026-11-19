@@ -47,9 +47,11 @@ export interface Settings {
   melodyClick: boolean;
   /** 받아쓰기 건반을 누르면 소리가 난다. 끄면 내청으로만 적는다(기획 §M7.3) */
   keySound: boolean;
+  /** 유형·시점별 마지막으로 본 요령 순번(기록 파일에 넣지 않음, 기획 §M9.3) */
+  tipIndex: Record<string, number>;
 }
 const SETTINGS = 'gawain.settings';
-const DEFAULTS: Settings = { minorDo: false, melodyClick: true, keySound: true };
+const DEFAULTS: Settings = { minorDo: false, melodyClick: true, keySound: true, tipIndex: {} };
 
 export function settings(): Settings {
   try {

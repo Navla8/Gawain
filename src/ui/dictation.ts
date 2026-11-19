@@ -9,6 +9,7 @@ import { renderStaff } from './staff.ts';
 import { keyRead, record, settings } from '../store.ts';
 import { app, h, header, pct } from './dom.ts';
 import { KEY_LOW, pianoKeys } from './keyboard.ts';
+import { nextTip, tipLine } from './tips.ts';
 
 // 선율 받아쓰기와 리듬 받아쓰기 화면 (기획 §3, §5, M3)
 
@@ -278,6 +279,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
       ctx.placement ? h('button', { class: 'ghost', onclick: giveUp }, '모르겠어요') : '',
       h('button', { class: 'submit', onclick: submit }, '제출'),
     ),
+    ctx.placement ? '' : tipLine(nextTip(rhythm ? 'rhythm' : 'dictation', 'solve')),
   );
   draw();
   aim();
@@ -389,6 +391,12 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
       h('button', { class: 'half', onclick: () => solve(p, practice) }, '처음부터'),
       h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
     ),
+    !perfect && !ctx.placement
+      ? tipLine(nextTip(
+          rhythm ? 'rhythm' : 'dictation',
+          rhythm ? 'rhythm' : pitchScore < 1 && (rhythmScore === 1 || pitchScore <= rhythmScore) ? 'pitch' : 'rhythm',
+        ))
+      : '',
   );
   // 결과 악보는 한눈에 비교하도록 화면 폭에 맞춰 줄인다(최소 65%)
   for (const svg of sheets) {

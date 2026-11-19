@@ -6,6 +6,7 @@ import { setCounting, touch } from '../activity.ts';
 import { keyRead, record } from '../store.ts';
 import { app, h, header } from './dom.ts';
 import type { ItemCtx } from './dictation.ts';
+import { nextTip, tipLine } from './tips.ts';
 
 // 계이름 듣기: 음계로 조성감을 세운 뒤 들리는 2~4음을 계이름 버튼으로 맞힌다 (기획 M3)
 // 답하는 동안 버튼은 소리를 내지 않는다. 소리로 하나씩 대 보면 기능으로 듣는 연습이 되지 않기 때문이다.
@@ -30,6 +31,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' });
   const foot = h('div', { class: 'degree-foot' });
+  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement ? '' : tipLine(nextTip('degree', 'solve')));
 
   function listen() {
     if (plays <= 0) return;
@@ -71,6 +73,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
     const ok = passed({ pitchScore: score, rhythmScore: 1 });
     ctx.onGraded?.(ok);
     if (score === 1) playDegrees([it.midis.at(-1)!], it.tonic, it.minor, false);
+    tipSlot.replaceChildren(...(!ctx.placement && score < 1 ? [tipLine(nextTip('degree', 'pitch'))] : []));
     draw();
   }
 
@@ -116,6 +119,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
     slots,
     pad,
     foot,
+    tipSlot,
   );
   draw();
 }

@@ -391,3 +391,32 @@ h2 { margin: 8px 0 -4px; font-family: var(--font-mono); font-size: 12px; color: 
 .seg.voices:empty { display: none; }
 .seg.voices button { flex: 1; padding: 8px 0; border: 1px solid var(--line); border-radius: 10px; }
 .seg.voices button.on { border-color: var(--text); }
+
+/* 요령(팁, 기획 §M9.3): 기존 토큰만, 헤어라인·본문색·--font-mono 라벨 */
+.tip-slot:empty { display: none; }
+.tip { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 11px 0; }
+.tip summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text);
+}
+.tip summary::-webkit-details-marker { display: none; }
+.tip summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tip[open] summary span { white-space: normal; }
+.tip summary .chev { flex: none; color: var(--muted); font-style: normal; font-size: 18px; line-height: 1; transition: transform 0.15s; }
+.tip[open] summary .chev { transform: rotate(90deg); }
+.tip-body { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.tip-body p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text); }
+.tip-body cite { font-style: normal; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.tip-list, .tip-sources { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.tip-list li { display: flex; flex-direction: column; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.tip-list strong { font-size: 16px; font-weight: 400; color: var(--text); }
+.tip-list p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text); }
+.tip-list cite { font-style: normal; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.tip-sources li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.tip-sources b { font-weight: 400; color: var(--text); }
