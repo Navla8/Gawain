@@ -1,5 +1,5 @@
 import { TRACKS, ladder, skill, within, type Track } from './curriculum.ts';
-import { blocker, classify, frontier, isDue, passed, type Progress, type SkillAttempt } from './progress.ts';
+import { MANY_WRONG, RETRY_SHARE, WRONG_DROP, attemptScore, blocker, classify, frontier, isDue, stepWrongCount, type Progress, type SkillAttempt } from './progress.ts';
 import { dayKey } from './habit.ts';
 
 export { frontier };
@@ -78,17 +78,22 @@ function planReviews(p: Progress, today: string): Slot[] {
 /** 실전 조건(재생 횟수를 줄임): 한 번 이상 점검을 통과한 단원의 점검·실력 확인(기획 §M6.3) */
 export const isExam = (p: Progress, slot: Slot) => (slot.role === 'review' || slot.role === 'check') && p.skills[slot.skill!].reviews >= 1;
 
-export type WrongAttempt = Pick<SkillAttempt, 'at' | 'placement' | 'pitchScore' | 'rhythmScore'> & { problemId?: string; fix?: boolean };
+export type WrongAttempt = Pick<SkillAttempt, 'at' | 'problemId' | 'skill' | 'placement' | 'fix' | 'pitchScore' | 'rhythmScore'>;
 
 function wrongAttempts(attempts: WrongAttempt[]): WrongAttempt[] {
   const latest = new Map<string, WrongAttempt>();
+  const counts = new Map<string, number>();
   for (const a of [...attempts].sort((x, y) => x.at.localeCompare(y.at))) {
-    if (a.problemId && !a.placement && !a.fix) latest.set(a.problemId, a);
+    if (!a.problemId || a.placement || a.fix) continue;
+    latest.set(a.problemId, a);
+    stepWrongCount(counts, a);
   }
-  return [...latest.values()].filter((a) => !passed(a)).sort((x, y) => x.at.localeCompare(y.at));
+  return [...latest.values()]
+    .filter((a) => attemptScore(a) < 1 && (counts.get(a.problemId!) ?? 0) < WRONG_DROP)
+    .sort((x, y) => x.at.localeCompare(y.at));
 }
 
-/** 오답 풀: 문제마다 가장 최근 시도(배치고사·고쳐 보기 제외)가 통과 미만인 문제 id, 최근 시도가 오래된 순(기획 §M9.1) */
+/** 오답 풀: 문제마다 가장 최근 시도(배치고사·고쳐 보기 제외)가 만점 미만이고 오답 수가 WRONG_DROP 미만인 문제 id, 최근 시도가 오래된 순(기획 §M9.1a) */
 export const wrongIds = (attempts: WrongAttempt[]): string[] => wrongAttempts(attempts).map((a) => a.problemId!);
 
 /** 대련에 다시 낼 지난 오답: 오답 풀 중 같은 문제를 다시 만들 수 있는 받아쓰기(mel-)·리듬(rhy-)이고 단원이 존재하며 최근 시도가 오늘 이전인 것 */
@@ -104,7 +109,8 @@ export function retryIds(attempts: WrongAttempt[], today: string): string[] {
 /** 한 판 구성: 망각 점검 → 지난 오답 → 익히는 단원(받아쓰기 3 + 짧은 문항, 약한 유형을 더 많이). 숙달하고 점검일이 안 된 단원은 내지 않는다 */
 export function planMatch(p: Progress, today: string, retries: string[] = []): Slot[] {
   const reviews = planReviews(p, today);
-  const again: Slot[] = retries.slice(0, RETRY).map((id) => { const s = skill(id.split('-')[1])!; return { track: s.track, role: 'retry', skill: s.id, problem: id }; });
+  const retryCap = retries.length >= MANY_WRONG ? Math.ceil(MAX_ITEMS * RETRY_SHARE) : RETRY;
+  const again: Slot[] = retries.slice(0, retryCap).map((id) => { const s = skill(id.split('-')[1])!; return { track: s.track, role: 'retry', skill: s.id, problem: id }; });
   // 선수 단원이 남은 받아쓰기는 열지 않고, 그 선수 단원 유형에 짧은 문항을 더 준다
   const waitOn = TRACKS.map((t) => frontier(p, t.id)).map((id) => id && blocker(p, id)).filter(Boolean).map((b) => skill(b!)!.track);
   const open = TRACKS.map((t) => t.id).filter((t) => { const id = frontier(p, t); return id && !blocker(p, id); });
@@ -128,11 +134,15 @@ export function planMatch(p: Progress, today: string, retries: string[] = []): S
   }
   // 짧은 문항: 지금 단원의 최근 통과율이 낮은 유형일수록, 약함(기획 M4.3)이면 더 자주
   const weight = (t: Track) => { const id = frontier(p, t)!; return 1.5 - passRate(p, id) + (classify(p, id) === 'weak' ? 0.5 : 0) + (waitOn.includes(t) ? 1 : 0); };
-  while (open.length && reviews.length + again.length + learn.length < MAX_ITEMS && time < BUDGET) {
+  const minOther = retries.length >= MANY_WRONG ? Math.floor(MAX_ITEMS * (1 - RETRY_SHARE)) : 1;
+  while (open.length && reviews.length + again.length + learn.length < MAX_ITEMS && (time < BUDGET || reviews.length + learn.length < minOther)) {
     const pool = shorts.length ? shorts : open;
     // 가중치 대비 지금까지 받은 문항이 가장 적은 유형에 하나씩(약할수록 많이, 그래도 고르게)
     const share = (t: Track) => learn.filter((x) => x === t).length / weight(t);
     add(pool.reduce((a, t) => (share(t) < share(a) ? t : a)));
+  }
+  if (retries.length >= MANY_WRONG) {
+    while (again.length > Math.ceil((reviews.length + learn.length + again.length) * RETRY_SHARE)) again.pop();
   }
 
   // 순서: 짧은 문항 하나로 몸을 풀고, 점검을 슬쩍 넣고, 받아쓰기는 고르게 흩는다

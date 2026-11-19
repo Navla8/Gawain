@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeProgress, classify, frontier, bestOf, weakness, attemptGrade, sinceReset, PROGRESS_FROM, FAST_PASS, FIRM, type SkillAttempt } from '../src/engine/progress.ts';
+import { computeProgress, classify, frontier, bestOf, weakness, attemptGrade, sinceReset, PROGRESS_FROM, FAST_PASS, FIRM, WRONG_DROP, type SkillAttempt } from '../src/engine/progress.ts';
 import { SKILLS } from '../src/engine/curriculum.ts';
 
 let clock = 0;
@@ -238,4 +238,50 @@ test('초기화 시점 전 기록은 실력 계산에서 뺀다', () => {
   const now = { at: '2026-11-18T00:00:00.000Z', skill: 'd0a', pitchScore: 1, rhythmScore: 1 };
   assert.deepEqual(sinceReset([old, now]), [now]);
   assert.ok(PROGRESS_FROM > old.at && PROGRESS_FROM < now.at);
+});
+
+test('같은 문제를 3번 틀리면(만점 미만, 포기급은 2번) 숙달 단원은 그 시점에 숙달이 풀린다', () => {
+  assert.equal(WRONG_DROP, 3);
+  // g1a를 다른 문제들로 숙달해 두고, mel-g1a-1을 세 번 0.9로(80% 이상이라 평소엔 통과) 틀림
+  const base = [att(-2, 'g1a', 1, { problemId: 'mel-g1a-10' }), att(-2, 'g1a', 1, { problemId: 'mel-g1a-11' }), att(-1, 'g1a', 1, { problemId: 'mel-g1a-12' })];
+  const w1 = att(0, 'g1a', 0.9, { problemId: 'mel-g1a-1', retry: true });
+  const w2 = att(1, 'g1a', 0.9, { problemId: 'mel-g1a-1', retry: true });
+  const w3 = att(2, 'g1a', 0.9, { problemId: 'mel-g1a-1', retry: true });
+  assert.equal(computeProgress([...base, w1, w2]).skills.g1a.mastered, true);
+  const dropped = computeProgress([...base, w1, w2, w3]);
+  assert.equal(dropped.skills.g1a.mastered, false);
+  assert.equal(dropped.skills.g1a.lapsed, true);
+  assert.equal(classify(dropped, 'g1a'), 'weak');
+  // 점검 실패와 같아 RELEARN_STREAK(2)번 능숙으로 다시 숙달(잊은 날 제외)
+  const re = [...base, w1, w2, w3, att(3, 'g1a', 1), att(3, 'g1a', 1)];
+  assert.equal(computeProgress(re).skills.g1a.mastered, true);
+
+  // 포기급(< 0.4)은 2로 세어 두 번이면 숙달이 풀린다
+  const g1 = att(0, 'g1a', 0.3, { problemId: 'mel-g1a-2', retry: true });
+  const g2 = att(1, 'g1a', 0.2, { problemId: 'mel-g1a-2', retry: true });
+  assert.equal(computeProgress([...base, g1]).skills.g1a.mastered, true);
+  assert.equal(computeProgress([...base, g1, g2]).skills.g1a.mastered, false);
+
+  // placement·fix는 횟수에 넣지 않는다
+  const skip = [
+    { at: day(-3), skill: 'g1a', problemId: 'mel-g1a-3', placement: true, pitchScore: 0.3, rhythmScore: 1 },
+    { at: day(0), problemId: 'mel-g1a-3', fix: true, pitchScore: 0.3, rhythmScore: 1 },
+    att(0, 'g1a', 0.9, { problemId: 'mel-g1a-3', retry: true }),
+    att(1, 'g1a', 0.9, { problemId: 'mel-g1a-3', retry: true }),
+  ];
+  assert.equal(computeProgress([...base, ...skip]).skills.g1a.mastered, true);
+
+  // 홈 오답 다시 풀기(skill 없음)에서도 단원 문제 3번째 오답이면 숙달이 풀린다. 단원 없는 문제집(2nd-1)은 무시
+  const homeWrong = [0, 1, 2].map((d) => ({ at: day(d), problemId: 'mel-g1a-4', pitchScore: 0.9, rhythmScore: 1 }));
+  assert.equal(computeProgress([...base, ...homeWrong]).skills.g1a.mastered, false);
+  const setWrong = [0, 1, 2].map((d) => ({ at: day(d), problemId: '2nd-1', pitchScore: 0.3, rhythmScore: 1 }));
+  assert.equal(computeProgress([...base, ...setWrong]).skills.g1a.mastered, true);
+});
+
+test('익히는 중인 단원은 3번 틀려 풀에서 빠져도 그대로 익히기를 이어 간다', () => {
+  const a = [0, 1, 2].map((d) => att(d, 'g1a', 0.85, { problemId: 'mel-g1a-1' }));
+  const p = computeProgress(a);
+  assert.equal(p.skills.g1a.mastered, false);
+  assert.equal(p.skills.g1a.lapsed, false);
+  assert.equal(classify(p, 'g1a'), 'learning');
 });

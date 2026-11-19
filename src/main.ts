@@ -66,7 +66,7 @@ function home() {
     ),
     calendar(d, today),
     review.length
-      ? card('오답 다시 풀기', `${review.length}문제 · 통과하면 목록에서 빠집니다`, () => startReview(), undefined, 'card review')
+      ? card('오답 다시 풀기', `${review.length}문제 · 만점을 받으면 목록에서 빠집니다`, () => startReview(), undefined, 'card review')
       : '',
     favs.length
       ? card('즐겨찾기 연습', `${favs.length}단원 · 고른 단원을 돌아가며 풉니다`, () => startFavorites(home))

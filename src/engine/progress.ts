@@ -31,11 +31,17 @@ export const WEAK_RATE = 0.5;
 /** 익히는 단원을 이 횟수만큼 연속으로 못 넘기면(포기급은 2번) 같은 유형의 바로 아래 단원을 숙달 전으로 되돌려 쉬운 것부터 다시 다진다.
  *  아래 단원은 능숙 RELEARN_STREAK번이면 다시 숙달된다(프롬프트 2026-11-17 14:53, 14:57) */
 export const STEP_DOWN_FAILS = 4;
+/** 같은 문제를 이 횟수(포기급은 2로 셈) 틀리면 오답 풀에서 빼고, 숙달한 단원이면 다시 다진다(기획 §M9.1a) */
+export const WRONG_DROP = 3;
+/** 대련 재출제 후보가 이 수 이상이면 한 판 문항의 RETRY_SHARE(올림)까지 오답으로 채운다 */
+export const MANY_WRONG = 6;
+export const RETRY_SHARE = 0.6;
 /** 능숙도 규칙으로 바꾸며 실력을 0부터 다시 쌓는다. 이 시각 전 시도는 실력 계산에 넣지 않는다(기록·연속 일수는 그대로, 프롬프트 2026-11-17 15:05) */
 export const PROGRESS_FROM = '2026-11-17T06:00:00.000Z';
 
 export interface SkillAttempt {
   at: string;
+  problemId?: string;
   skill?: string;
   placement?: boolean;
   /** 배치고사 마지막 문항: 배치고사를 끝까지 봤다는 표시 */
@@ -51,6 +57,8 @@ export interface SkillAttempt {
   miss?: string[];
   /** 대련에 다시 나온 지난 오답. 숙달 판정에 넣지 않고 약점 집계에만 쓴다(기획 §M6.4) */
   retry?: boolean;
+  /** 결과 화면에서 정답을 본 직후의 '고쳐 보기'·'처음부터' 시도(오답 풀을 비우지 않음) */
+  fix?: boolean;
 }
 
 export interface SkillState {
@@ -102,7 +110,7 @@ export const fluentTime = (track: Track, size: number) => FLUENT_TIME[track][0] 
 export type Grade = 'fluent' | 'pass' | 'fail' | 'giveup';
 
 /** 한 시도의 능숙도: 능숙(정확·적게 듣고·빠름) / 통과 / 실패 / 포기급 */
-export function attemptGrade(a: SkillAttempt, track: Track): Grade {
+export function attemptGrade(a: Omit<SkillAttempt, 'at'>, track: Track): Grade {
   const score = attemptScore(a);
   if (score < GIVE_UP) return 'giveup';
   if (score < PASS) return 'fail';
@@ -195,16 +203,47 @@ function levels(skills: Record<string, SkillState>) {
   return { trackLevels, level: Math.min(...Object.values(trackLevels)) };
 }
 
+/** 문제별 오답 수(만점 미만, placement·fix 제외, 포기급은 2)를 한 시도만큼 갱신하고 갱신 전·후 수를 돌려준다 */
+export function stepWrongCount(
+  counts: Map<string, number>,
+  a: Pick<SkillAttempt, 'problemId' | 'placement' | 'fix' | 'pitchScore' | 'rhythmScore' | 'skill'>,
+): [number, number] {
+  if (!a.problemId || a.placement || a.fix) return [0, 0];
+  const prev = counts.get(a.problemId) ?? 0;
+  if (attemptScore(a) >= 1) {
+    counts.set(a.problemId, 0);
+    return [prev, 0];
+  }
+  const track = (a.skill ? skill(a.skill)?.track : undefined) ?? 'dictation';
+  const next = prev + (attemptGrade(a, track) === 'giveup' ? 2 : 1);
+  counts.set(a.problemId, next);
+  return [prev, next];
+}
+
+const problemUnit = (a: Pick<SkillAttempt, 'skill' | 'problemId'>): string | undefined => {
+  if (a.skill && skill(a.skill)) return a.skill;
+  const m = a.problemId?.match(/^(?:mel|rhy|tun|deg|har)-([^-]+)-/);
+  return m && skill(m[1]) ? m[1] : undefined;
+};
+
 export function computeProgress(attempts: SkillAttempt[]): Progress {
   const skills: Record<string, SkillState> = Object.fromEntries(TRACKS.flatMap((t) => ladder(t.id)).map((s) => [s.id, fresh()]));
   const history: Progress['history'] = [];
+  const wrongCounts = new Map<string, number>();
   let level = levels(skills).level;
   let placed = false;
-  const list = attempts.filter((a) => a.skill && skill(a.skill) && !a.retry).sort((x, y) => x.at.localeCompare(y.at));
+  const list = [...attempts].sort((x, y) => x.at.localeCompare(y.at));
   for (const a of list) {
-    apply(skills, a);
-    // 배치고사는 끝까지 봐야 본 것. 끝 표시가 없는 예전 배치고사는 받아쓰기 사다리가 바뀌어(기획 §M5) 다시 본다
-    placed ||= !!a.placementEnd;
+    if (a.skill && skill(a.skill) && !a.retry && !a.fix) {
+      apply(skills, a);
+      // 배치고사는 끝까지 봐야 본 것. 끝 표시가 없는 예전 배치고사는 받아쓰기 사다리가 바뀌어(기획 §M5) 다시 본다
+      placed ||= !!a.placementEnd;
+    }
+    const [prev, next] = stepWrongCount(wrongCounts, a);
+    if (prev < WRONG_DROP && next >= WRONG_DROP) {
+      const unit = problemUnit(a);
+      if (unit && skills[unit].mastered) forgot(skills[unit], dayKey(new Date(a.at)));
+    }
     const l = levels(skills).level;
     if (l !== level) history.push({ at: a.at, level: (level = l) });
   }
