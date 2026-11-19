@@ -38,7 +38,7 @@ export const TIPS: Tip[] = [
     when: 'solve',
     title: '첫 재생은 건반 누르지 않고 끝까지 듣기',
     body: '첫 재생부터 음을 적으려 하면 적는 동작이 듣기와 기억을 방해해 뒷마디를 놓치기 쉽습니다. 첫 번째는 손대지 않고 박자·으뜸음·전체 오르내림만 잡으세요.',
-    source: 'Karpinski, Aural Skills Acquisition · Pembrook (1986) 논문',
+    source: 'Karpinski, Aural Skills Acquisition',
   },
   {
     id: 'd-s2',
@@ -55,8 +55,8 @@ export const TIPS: Tip[] = [
     topic: '선율 받아쓰기',
     when: 'solve',
     title: '들은 직후 속으로 되불러 음향 심상 고정하기',
-    body: '재생이 끝난 직후 몇 초가 단기 기억이 가장 선명할 때입니다. 곧바로 건반을 누르기 전에 방금 들은 선율을 속으로(또는 작게) 되불러 기억을 고정한 뒤 계이름을 찾아 적으세요.',
-    source: 'Benward & Kolosick, Ear Training: A Technique for Listening · Pembrook (1987) 논문',
+    body: '재생이 끝난 직후 몇 초가 단기 기억이 가장 선명할 때입니다. 곧바로 건반을 누르기 전에 방금 들은 선율을 속으로 되불러 기억을 고정한 뒤 계이름을 찾아 적으세요.',
+    source: 'Benward & Kolosick, Ear Training: A Technique for Listening',
   },
   {
     id: 'd-s4',
