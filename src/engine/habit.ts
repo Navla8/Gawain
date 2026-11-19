@@ -40,10 +40,3 @@ export function streak(attempts: AttemptLike[], seconds: Record<string, number>,
   }
   return { days, goalDays };
 }
-
-/** 문제별 가장 최근 시도가 만점이 아닌 문제 id */
-export function reviewIds(attempts: AttemptLike[]): string[] {
-  const latest = new Map<string, AttemptLike>();
-  for (const a of [...attempts].sort((x, y) => x.at.localeCompare(y.at))) latest.set(a.problemId, a);
-  return [...latest.values()].filter((a) => a.pitchScore < 1 || a.rhythmScore < 1).map((a) => a.problemId);
-}

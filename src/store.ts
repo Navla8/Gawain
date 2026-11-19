@@ -20,6 +20,8 @@ export interface Attempt {
   placement?: boolean;
   /** 배치고사 마지막 문항(끝까지 봄) */
   placementEnd?: boolean;
+  /** 결과 화면에서 정답을 본 직후의 '고쳐 보기'·'처음부터' 시도(오답 풀을 비우지 않음) */
+  fix?: boolean;
   /** 틀린 요소(계이름 듣기: 틀린 계이름) */
   miss?: string[];
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dayKey, dayStatus, streak, reviewIds, GOAL_SECONDS } from '../src/engine/habit.ts';
+import { dayKey, dayStatus, streak, GOAL_SECONDS } from '../src/engine/habit.ts';
 
 const at = (key: string, problemId = 'p', score = 1) => ({ at: new Date(key + 'T12:00:00').toISOString(), problemId, pitchScore: score, rhythmScore: 1 });
 
@@ -29,9 +29,4 @@ test('연속 일수: 오늘 아직 안 했으면 어제까지로 센다', () => 
 test('연속 일수는 월이 바뀌어도 이어진다', () => {
   const attempts = ['2026-09-30', '2026-10-01'].map((d) => at(d));
   assert.equal(streak(attempts, {}, '2026-10-01').days, 2);
-});
-
-test('오답 목록: 문제별 가장 최근 시도가 만점이 아닌 것', () => {
-  const attempts = [at('2026-10-01', 'a', 0.5), at('2026-10-02', 'a', 1), at('2026-10-01', 'b', 1), at('2026-10-03', 'c', 0.8)];
-  assert.deepEqual(reviewIds(attempts), ['c']);
 });

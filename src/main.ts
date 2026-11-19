@@ -1,10 +1,10 @@
 import './style.css';
 import { SETS, pickRandom, findProblem } from './engine/bank.ts';
-import { GOAL_SECONDS, addDays, dayKey, dayStatus, reviewIds, streak } from './engine/habit.ts';
+import { GOAL_SECONDS, addDays, dayKey, dayStatus, streak } from './engine/habit.ts';
 import { setCounting, startActivityClock } from './activity.ts';
 import { LEVELS, MAX_LEVEL, SKILLS, TRACKS, trackLevelText } from './engine/curriculum.ts';
 import { computeProgress, isDue, sinceReset } from './engine/progress.ts';
-import { EST } from './engine/session.ts';
+import { EST, wrongIds } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
 import { load, merge, setSaveFailHandler, setSettings, settings } from './store.ts';
@@ -24,7 +24,7 @@ function home() {
   const today = dayKey(new Date());
   const secs = d.seconds[today] ?? 0;
   const st = streak(d.attempts, d.seconds, today);
-  const review = reviewIds(d.attempts).filter((id) => findProblem(id));
+  const review = wrongIds(d.attempts).filter((id) => findProblem(id));
   const p = computeProgress(sinceReset(d.attempts));
   const lv = Math.min(p.level, MAX_LEVEL);
   const inLevel = SKILLS.filter((s) => s.level === lv);
@@ -65,7 +65,7 @@ function home() {
     ),
     calendar(d, today),
     review.length
-      ? card('오답 다시 풀기', `${review.length}문제 · 만점을 받으면 목록에서 제외됩니다`, () => startReview(), undefined, 'card review')
+      ? card('오답 다시 풀기', `${review.length}문제 · 통과하면 목록에서 빠집니다`, () => startReview(), undefined, 'card review')
       : '',
     h('h2', { class: 'section' }, '자유 연습'),
     (() => {
@@ -200,7 +200,7 @@ function calendar(d: ReturnType<typeof load>, today: string) {
 }
 
 function startReview(last?: string) {
-  const ids = reviewIds(load().attempts).filter((id) => findProblem(id) && id !== last);
+  const ids = wrongIds(load().attempts).filter((id) => findProblem(id) && id !== last);
   if (!ids.length) return home();
   const id = ids[Math.floor(Math.random() * ids.length)];
   practice(findProblem(id)!, () => startReview(id));

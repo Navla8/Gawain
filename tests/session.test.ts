@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeProgress, type SkillAttempt } from '../src/engine/progress.ts';
-import { planMatch, stepDown, nextPlacement, placementLeft, frontier, learnUnit, isExam, retryIds, EST, BUDGET, REVIEW_BUDGET } from '../src/engine/session.ts';
+import { planMatch, stepDown, nextPlacement, placementLeft, frontier, learnUnit, isExam, retryIds, wrongIds, EST, BUDGET, REVIEW_BUDGET } from '../src/engine/session.ts';
 import { SKILLS, ladder, within } from '../src/engine/curriculum.ts';
 
 let clock = 0;
@@ -84,22 +84,45 @@ test('실전 조건: 한 번 이상 확인한 단원의 점검은 재생 횟수�
   assert.equal(isExam(computeProgress(a), { ...slot, role: 'learn' }), false);
 });
 
-test('대련 오답은 다음 날부터 같은 문제로 대련에 다시 나오고, 통과하면 빠진다', () => {
+test('오답 풀: 최근 시도(배치고사·고쳐 보기 제외)가 80% 미만인 문제, 오래된 순', () => {
+  const day = (d: number) => new Date(2026, 10, d, 12).toISOString();
+  const a1 = { at: day(1), problemId: '2nd-1', pitchScore: 0.5, rhythmScore: 1 };
+  const a2 = { at: day(2), problemId: 'mel-g1b-1', skill: 'g1b', pitchScore: 0.6, rhythmScore: 1 };
+  // placement·fix 제외, 80% 통과면 만점 아니어도 빠짐, 대련 밖(skill 없음) 통과로도 빠짐
+  const place = { at: day(1), problemId: '3rd-1', placement: true, pitchScore: 0, rhythmScore: 1 };
+  const fixOk = { at: day(3), problemId: 'mel-g1b-1', fix: true, pitchScore: 1, rhythmScore: 1 };
+  const pass80 = { at: day(4), problemId: '2nd-1', pitchScore: 0.8, rhythmScore: 0.85 };
+  assert.deepEqual(wrongIds([a1, a2, place]), ['2nd-1', 'mel-g1b-1']);
+  assert.deepEqual(wrongIds([a1, a2, fixOk]), ['2nd-1', 'mel-g1b-1']);
+  assert.deepEqual(wrongIds([a1, a2, fixOk, pass80]), ['mel-g1b-1']);
+  // 다시 틀리면 그 최근 시도 시각 기준으로 오래된 순 뒤로 간다
+  const newer = { at: day(5), problemId: '2nd-1', pitchScore: 0.7, rhythmScore: 1 };
+  assert.deepEqual(wrongIds([a1, a2, pass80, newer]), ['mel-g1b-1', '2nd-1']);
+});
+
+test('대련 오답은 다음 날부터 같은 문제로 한 판 2문제까지 다시 나오고, 숙달 단원도 재출제되며, 고쳐 보기 외 통과로 빠진다', () => {
   const base = masterAll(['d0a', 'd0b', 'd1a', 'r1', 'g1a']);
   const miss = { at: new Date(2026, 10, 2, 12).toISOString(), skill: 'g1b', problemId: 'mel-g1b-5', pitchScore: 0.5, rhythmScore: 1 };
+  const masteredMiss = { at: new Date(2026, 10, 2, 11).toISOString(), skill: 'g1a', problemId: 'mel-g1a-1', pitchScore: 0.5, rhythmScore: 1 };
+  const rhyMiss = { at: new Date(2026, 10, 2, 13).toISOString(), skill: 'r1', problemId: 'rhy-r1-2', pitchScore: 1, rhythmScore: 0.5 };
   const p = computeProgress([...base, miss]);
-  assert.deepEqual(retryIds([...base, miss], p, '2026-11-02'), []);
-  assert.deepEqual(retryIds([...base, miss], p, '2026-11-03'), ['mel-g1b-5']);
-  const plan = planMatch(p, '2026-11-03', ['mel-g1b-5']);
-  assert.deepEqual(plan.filter((s) => s.role === 'retry'), [{ track: 'dictation', role: 'retry', skill: 'g1b', problem: 'mel-g1b-5' }]);
-  const fixed = { ...miss, at: new Date(2026, 10, 3, 12).toISOString(), pitchScore: 1, retry: true };
-  assert.deepEqual(retryIds([...base, miss, fixed], p, '2026-11-04'), []);
-  // 단원 없는 연습('고쳐 보기')으로 맞힌 것은 재출제를 풀지 않는다(M3)
-  const practice = { at: new Date(2026, 10, 3, 12).toISOString(), problemId: 'mel-g1b-5', pitchScore: 1, rhythmScore: 1 };
-  assert.deepEqual(retryIds([...base, miss, practice], p, '2026-11-04'), ['mel-g1b-5']);
+  assert.deepEqual(retryIds([...base, miss], '2026-11-02'), []);
+  assert.deepEqual(retryIds([...base, miss, masteredMiss], '2026-11-03'), ['mel-g1a-1', 'mel-g1b-5']);
+  // 한 판 최대 2문제(RETRY = 2)
+  const plan = planMatch(p, '2026-11-03', retryIds([...base, miss, masteredMiss, rhyMiss], '2026-11-03'));
+  assert.deepEqual(plan.filter((s) => s.role === 'retry'), [
+    { track: 'dictation', role: 'retry', skill: 'g1a', problem: 'mel-g1a-1' },
+    { track: 'dictation', role: 'retry', skill: 'g1b', problem: 'mel-g1b-5' },
+  ]);
+  // 고쳐 보기(fix: true) 통과는 재출제 풀에서 안 빠진다
+  const fixPass = { at: new Date(2026, 10, 3, 12).toISOString(), problemId: 'mel-g1b-5', fix: true, pitchScore: 1, rhythmScore: 1 };
+  assert.deepEqual(retryIds([...base, miss, fixPass], '2026-11-04'), ['mel-g1b-5']);
+  // 대련 밖(skill 없음, fix 없음)에서 80% 통과해도 풀에서 빠진다
+  const outsidePass = { at: new Date(2026, 10, 3, 13).toISOString(), problemId: 'mel-g1b-5', pitchScore: 0.8, rhythmScore: 1 };
+  assert.deepEqual(retryIds([...base, miss, fixPass, outsidePass], '2026-11-04'), []);
   // 계이름 듣기는 약점 가중치로 만들어 같은 문제를 다시 만들 수 없어 내지 않는다
   const deg = { ...miss, skill: 'd1b', problemId: 'deg-d1b-5' };
-  assert.deepEqual(retryIds([...base, deg], computeProgress([...base, deg]), '2026-11-03'), []);
+  assert.deepEqual(retryIds([...base, deg], '2026-11-03'), []);
 });
 
 test('모두 숙달하고 점검할 것도 없으면 가장 어려운 단원으로 실력 확인', () => {

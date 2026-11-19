@@ -35,8 +35,8 @@ export const MAX_TOTAL = 13;
 const DICTATION = 3;
 /** 한 판에 망각 점검에 쓰는 시간 한도. 넘치는 점검은 다음 판으로 미룬다(기획 §M6.1) */
 export const REVIEW_BUDGET = 300;
-/** 한 판에 다시 내는 지난 오답 수(기획 §M6.4) */
-const RETRY = 1;
+/** 한 판에 다시 내는 지난 오답 수(기획 §M9.1) */
+const RETRY = 2;
 
 
 /** 최근 통과율(기록 없으면 0.5) */
@@ -78,18 +78,27 @@ function planReviews(p: Progress, today: string): Slot[] {
 /** 실전 조건(재생 횟수를 줄임): 한 번 이상 점검을 통과한 단원의 점검·실력 확인(기획 §M6.3) */
 export const isExam = (p: Progress, slot: Slot) => (slot.role === 'review' || slot.role === 'check') && p.skills[slot.skill!].reviews >= 1;
 
-/** 대련에 다시 낼 지난 오답: 대련에서 못 넘긴 문제 중 그 뒤로 대련에서 통과한 적 없고, 하루가 지났고, 단원을 아직 숙달하지 않은 것(오래된 것부터).
- *  같은 문제를 다시 만들 수 있는 받아쓰기(mel-)·리듬(rhy-)만. 계이름 듣기는 약점 가중치로 만들어 다시 만들 수 없다 */
-export function retryIds(attempts: (SkillAttempt & { problemId?: string })[], p: Progress, today: string): string[] {
-  const latest = new Map<string, SkillAttempt>();
-  // 대련 시도(skill 있음)만: 정답을 본 직후의 '고쳐 보기'(skill 없음) 통과는 재출제를 풀지 않는다
-  for (const a of [...attempts].sort((x, y) => x.at.localeCompare(y.at))) if (a.problemId && a.skill) latest.set(a.problemId, a);
-  const missed = new Set(attempts.filter((a) => a.skill && !a.placement && a.problemId && !passed(a)).map((a) => a.problemId!));
-  return [...missed].filter((id) => {
-    const [kind, unit] = id.split('-');
-    const last = latest.get(id)!;
-    return (kind === 'mel' || kind === 'rhy') && skill(unit) && !p.skills[unit].mastered && !passed(last) && dayKey(new Date(last.at)) < today;
-  }).sort((a, b) => latest.get(a)!.at.localeCompare(latest.get(b)!.at));
+export type WrongAttempt = Pick<SkillAttempt, 'at' | 'placement' | 'pitchScore' | 'rhythmScore'> & { problemId?: string; fix?: boolean };
+
+function wrongAttempts(attempts: WrongAttempt[]): WrongAttempt[] {
+  const latest = new Map<string, WrongAttempt>();
+  for (const a of [...attempts].sort((x, y) => x.at.localeCompare(y.at))) {
+    if (a.problemId && !a.placement && !a.fix) latest.set(a.problemId, a);
+  }
+  return [...latest.values()].filter((a) => !passed(a)).sort((x, y) => x.at.localeCompare(y.at));
+}
+
+/** 오답 풀: 문제마다 가장 최근 시도(배치고사·고쳐 보기 제외)가 통과 미만인 문제 id, 최근 시도가 오래된 순(기획 §M9.1) */
+export const wrongIds = (attempts: WrongAttempt[]): string[] => wrongAttempts(attempts).map((a) => a.problemId!);
+
+/** 대련에 다시 낼 지난 오답: 오답 풀 중 같은 문제를 다시 만들 수 있는 받아쓰기(mel-)·리듬(rhy-)이고 단원이 존재하며 최근 시도가 오늘 이전인 것 */
+export function retryIds(attempts: WrongAttempt[], today: string): string[] {
+  return wrongAttempts(attempts)
+    .filter((a) => {
+      const [kind, unit] = a.problemId!.split('-');
+      return (kind === 'mel' || kind === 'rhy') && !!skill(unit) && dayKey(new Date(a.at)) < today;
+    })
+    .map((a) => a.problemId!);
 }
 
 /** 한 판 구성: 망각 점검 → 지난 오답 → 익히는 단원(받아쓰기 3 + 짧은 문항, 약한 유형을 더 많이). 숙달하고 점검일이 안 된 단원은 내지 않는다 */
@@ -104,7 +113,9 @@ export function planMatch(p: Progress, today: string, retries: string[] = []): S
     // 구현된 단원을 모두 숙달했고 점검할 것도 없다: 유형마다 다음 점검일이 가까운(잊기 쉬운) 단원 둘로 실전 조건 실력 확인
     const near = (t: Track) => ladder(t).map((s) => s.id).reverse().sort((a, b) => p.skills[a].due!.localeCompare(p.skills[b].due!)).slice(0, 2);
     const checks = TRACKS.map((t) => near(t.id).map((id) => ({ track: t.id, role: 'check' as const, skill: id })));
-    return [...checks.map((c) => c[0]), ...checks.map((c) => c[1]).filter(Boolean)];
+    const out: Slot[] = [...checks.map((c) => c[0]), ...checks.map((c) => c[1]).filter(Boolean)];
+    out.splice(Math.ceil(out.length / 2), 0, ...again);
+    return out;
   }
 
   let time = [...reviews, ...again].reduce((a, s) => a + EST[s.track], 0);

@@ -35,7 +35,7 @@ export function matchPlan() {
   const attempts = sinceReset(load().attempts);
   const p = computeProgress(attempts);
   const today = dayKey(new Date());
-  return { p, slots: planMatch(p, today, retryIds(attempts, p, today)) };
+  return { p, slots: planMatch(p, today, retryIds(attempts, today)) };
 }
 
 /** 실전 조건의 재생 횟수(기획 §M6.3): 받아쓰기·리듬 5 → 3, 계이름 3 → 2 */

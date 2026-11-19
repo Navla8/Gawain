@@ -28,6 +28,8 @@ export interface ItemCtx {
   plays?: number;
   /** 대련에 다시 나온 지난 오답(숙달 판정에서 뺀다) */
   retry?: boolean;
+  /** 결과 화면에서 정답을 본 직후의 '고쳐 보기'·'처음부터' 시도(오답 풀을 비우지 않음) */
+  fix?: boolean;
   /** 실전 조건(기획 §M6.3, §M7.3): 선율 중 메트로놈과 건반 소리를 끈다 */
   exam?: boolean;
   /** 머리줄 뒤로 가기(없으면 홈). 실력 화면에서 연 단원 풀기는 실력 화면으로 */
@@ -220,7 +222,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
     record({
       at: new Date().toISOString(), problemId: p.id, answer: answers[0], ...(two && { answerBass: answers[1] }), pitchScore, rhythmScore,
       plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
-      ...(ctx.skill && { skill: ctx.skill, miss }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }),
+      ...(ctx.skill && { skill: ctx.skill, miss }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }), ...(ctx.fix && { fix: true }),
     });
     ctx.onGraded?.(passed({ pitchScore, rhythmScore }));
     result(p, answers, rs, ctx);
@@ -362,8 +364,8 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
   const perfect = pitchScore === 1 && rhythmScore === 1;
   const ok = passed({ pitchScore, rhythmScore });
   const errors = parts.flatMap((x) => x.errors);
-  // 다시 풀기는 연습으로만 남긴다(답을 본 뒤라 단원 판정에 넣지 않음)
-  const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, retry: undefined, plays: undefined, exam: undefined, onGraded: undefined };
+  // 다시 풀기는 연습으로만 남긴다(답을 본 뒤라 단원 판정·오답 풀 해제에 넣지 않음)
+  const practice: ItemCtx = { ...ctx, skill: undefined, placement: undefined, retry: undefined, fix: true, plays: undefined, exam: undefined, onGraded: undefined };
   app.replaceChildren(
     header(p.title, ctx.step, ctx.back),
     h('div', { class: 'scores' + (perfect ? ' perfect' : '') },
