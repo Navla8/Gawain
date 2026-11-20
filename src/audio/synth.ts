@@ -159,10 +159,31 @@ export function playChords(chords: number[][], arpeggio = false, sec = 1.0): num
 }
 
 /** 계이름 듣기: (처음이면 카덴츠) → 잠깐 쉬고 → 음들을 4분음표로. 전체 길이(초)를 돌려준다 */
-export function playDegrees(midis: number[], tonic: number, minor: boolean, withCadence: boolean): number {
+export function playDegrees(midis: number[], tonic: number, minor: boolean, withCadence: boolean, tempo = 72): number {
   const c = unlockAudio();
   stopAll();
   let t = c.currentTime + 0.05;
   if (withCadence) t = cadence(tonic, minor, t) + 0.5;
-  return playNotes(midis.map((midi) => ({ midi, dur: TPB })), 72, t - c.currentTime);
+  return playNotes(midis.map((midi) => ({ midi, dur: TPB })), tempo, t - c.currentTime);
+}
+
+/** 조성 잡기(기획 §M11): 카덴츠 → (k0c 4음 선율) → 후보 음을 차례로. 각 후보가 울릴 때 onCand(번호)를 부른다 */
+export function playTonic(tonic: number, lead: number[], candidates: number[], onCand?: (i: number) => void): number {
+  const c = unlockAudio();
+  stopAll();
+  let t = cadence(tonic, false, c.currentTime + 0.05) + 0.4;
+  if (lead.length) {
+    for (const m of lead) {
+      piano(m, t, 0.5);
+      t += 0.55;
+    }
+    t += 0.6;
+  }
+  candidates.forEach((m, i) => {
+    const delay = Math.max(0, t - c.currentTime);
+    if (onCand) later(delay, () => onCand(i));
+    piano(m, t, 0.75);
+    t += 0.95;
+  });
+  return t - c.currentTime;
 }

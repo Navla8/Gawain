@@ -44,6 +44,7 @@ const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const MINOR = [-3, -1, 0, 2, 4, 5, 7];
 
 const DEGREE: Record<string, DegreeCfg> = {
+  k0d: { choices: MAJOR, patterns: MAJOR.map((x) => [x]) },
   d0a: { choices: [0, 2, 4], walk: { pool: [0, 2, 4], maxMove: 2, len: [3, 3] } },
   d0b: { choices: [0, 2, 4, 5, 7], walk: { pool: [0, 2, 4, 5, 7], maxMove: 2, len: [3, 4] } },
   d1a: { choices: MAJOR, walk: { pool: [-5, -3, -1, 0, 2, 4, 5, 7, 9, 11, 12], maxMove: 1, len: [4, 4] } },
@@ -148,6 +149,117 @@ export function degreeItem(skillId: string, seed: number, weak: Weights = {}): D
     choices: cfg.choices.map(nameOf),
     choiceMidis: cfg.choices.map((x) => doMidi + x),
     title: `계이름 듣기 · ${keyName({ tonic, fifths, minor })}`,
+  };
+}
+
+// ───────── 조성 잡기 (기획 §M11) ─────────
+
+const RES_PATH: Record<number, number[]> = {
+  0: [0],
+  2: [2, 0],
+  4: [4, 2, 0],
+  5: [5, 4, 2, 0],
+  7: [7, 5, 4, 2, 0],
+  9: [9, 11, 12],
+  11: [11, 12],
+};
+
+/** 장음계 한 음(도에서 rel 반음)이 도까지 차례로 풀려 가는 상대 반음 목록. 레·미·파·솔은 내려가며, 라·티는 올라가며 */
+export function resolution(rel: number): number[] {
+  const r = mod(rel, 12);
+  const oct = rel - r;
+  return (RES_PATH[r] ?? [r]).map((x) => x + oct);
+}
+
+export interface TonicItem {
+  id: string;
+  skill: string;
+  tonic: number;
+  fifths: number;
+  minor: false;
+  lead: number[];
+  candidates: number[];
+  candNames: string[];
+  answer: number;
+  title: string;
+}
+
+const TONIC_TITLE: Record<string, string> = {
+  k0a: '도 찾기 (두 음)',
+  k0b: '도 찾기 (네 음)',
+  k0c: '도 붙잡기',
+};
+const K0A_POOL = [7, 5, 2, 9];
+const K0B_POOL = [2, 4, 5, 7, 9, 11];
+const K0C_EXTRA = [2, 4, 5, 9, 11];
+const K0C_WALK = [-5, -3, -1, 0, 2, 4, 5, 7, 9, 11];
+const K0C_START = new Set([2, 5, 7, 9, 11]); // 레·파·솔·라·티
+
+export const isTonicSkill = (id: string) => id in TONIC_TITLE;
+
+/** 후보 음을 도(tonic) 근처 옥타브에 놓는다. 도가 늘 최저음이 되지 않게 위·아래로 섞는다 */
+function nearTonic(rel: number, r: () => number): number {
+  if (rel === 0) return 0;
+  if (rel === 11) return -1;
+  if (rel === 9) return -3;
+  if (rel === 7) return r() < 0.5 ? -5 : 7;
+  if (rel === 5) return r() < 0.5 ? -7 : 5;
+  return rel;
+}
+
+/** 조성 잡기(k0a·k0b·k0c) 한 문항. weak: 도 대신 많이 고른 방해음 계이름별 횟수 */
+export function tonicItem(skillId: string, seed: number, weak: Weights = {}): TonicItem {
+  const r = rng(seed);
+  const { fifths, tonic } = pickKey(r, false);
+  const w = (rel: number) => 1 + 2 * (weak[degreeName(rel)] ?? 0);
+
+  const lead: number[] = [];
+  if (skillId === 'k0c') {
+    const startIdx = K0C_WALK.map((_, k) => k).filter((k) => K0C_START.has(mod(K0C_WALK[k], 12)));
+    let i = startIdx[Math.floor(r() * startIdx.length)];
+    const idx = [i];
+    while (idx.length < 4) {
+      const last = idx.length === 3;
+      const next = K0C_WALK.map((_, k) => k).filter((k) => k !== i && Math.abs(k - i) <= 2 && (!last || mod(K0C_WALK[k], 12) !== 0));
+      i = next[Math.floor(r() * next.length)];
+      idx.push(i);
+    }
+    lead.push(...idx.map((k) => tonic + K0C_WALK[k]));
+  }
+
+  let rels: number[];
+  if (skillId === 'k0a') {
+    rels = [0, weighted(K0A_POOL, w, r)];
+  } else if (skillId === 'k0b') {
+    const left = [...K0B_POOL];
+    const picked: number[] = [];
+    for (let n = 0; n < 3; n++) {
+      const x = weighted(left, w, r);
+      picked.push(x);
+      left.splice(left.indexOf(x), 1);
+    }
+    rels = [0, ...picked];
+  } else {
+    rels = [0, 7, weighted(K0C_EXTRA, w, r)];
+  }
+
+  const placed = rels.map((x) => nearTonic(x, r));
+  for (let i = placed.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [placed[i], placed[j]] = [placed[j], placed[i]];
+  }
+
+  return {
+    id: `ton-${skillId}-${seed}`,
+    skill: skillId,
+    tonic,
+    fifths,
+    minor: false,
+    lead,
+    candidates: placed.map((x) => tonic + x),
+    candNames: placed.map(degreeName),
+    answer: placed.indexOf(0),
+    title: `${TONIC_TITLE[skillId]} · ${keyName({ tonic, fifths, minor: false })}`,
   };
 }
 

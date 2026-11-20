@@ -237,7 +237,7 @@ export function stepWrongCount(
 
 const problemUnit = (a: Pick<SkillAttempt, 'skill' | 'problemId'>): string | undefined => {
   if (a.skill && skill(a.skill)) return a.skill;
-  const m = a.problemId?.match(/^(?:mel|rhy|tun|deg|har|mem)-([^-]+)-/);
+  const m = a.problemId?.match(/^(?:mel|rhy|tun|deg|har|mem|ton)-([^-]+)-/);
   return m && skill(m[1]) ? m[1] : undefined;
 };
 
@@ -287,7 +287,15 @@ export function classify(p: Progress, id: string): SkillClass {
   const st = p.skills[id];
   if (st.mastered) return st.easy ? 'easy' : 'stable';
   if (isWeak(st)) return 'weak';
-  return frontier(p, skill(id)!.track) === id ? 'learning' : 'waiting';
+  const s = skill(id)!;
+  if (frontier(p, s.track) === id) return 'learning';
+  // 사이 단원(bridge)이 앞에 끼더라도 기존 사용자가 이미 연 본 사다리 단원은 잠그지 않는다(기획 §M11.2)
+  if (!s.bridge) {
+    const core = ladder(s.track).filter((x) => !x.bridge);
+    const opened = core.some((x) => p.skills[x.id].tries > 0 || p.skills[x.id].mastered);
+    if (opened && core.find((x) => !p.skills[x.id].mastered)?.id === id) return 'learning';
+  }
+  return 'waiting';
 }
 
 /** 점검일이 된 단원 */

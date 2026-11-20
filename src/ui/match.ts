@@ -2,7 +2,7 @@ import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill, trackLevelText } from '../eng
 import { bestOf, blocker, classify, computeProgress, sinceReset, weakness, type Progress } from '../engine/progress.ts';
 import { MAX_TOTAL, frontier, isExam, learnUnit, nextPlacement, placementLeft, planMatch, retryIds, stepDown, type Slot } from '../engine/session.ts';
 import { contentTags } from '../engine/grade.ts';
-import { degreeItem, rhythmItem } from '../engine/drills.ts';
+import { degreeItem, isTonicSkill, rhythmItem, tonicItem } from '../engine/drills.ts';
 import { melodyItem, memoryItem, tuneItem } from '../engine/melody.ts';
 import { dayKey } from '../engine/habit.ts';
 import { setCounting } from '../activity.ts';
@@ -10,7 +10,7 @@ import { stopAll, playNotes } from '../audio/synth.ts';
 import { favoriteIds, load, save } from '../store.ts';
 import { app, h, header, nav } from './dom.ts';
 import { solve, type ItemCtx } from './dictation.ts';
-import { degreeScreen } from './degree.ts';
+import { degreeScreen, tonicScreen } from './degree.ts';
 import { harmonyScreen } from './harmony.ts';
 import { memoryScreen } from './memory.ts';
 import { harmonyItem } from '../engine/harmony.ts';
@@ -167,7 +167,10 @@ function present(id: string, slot: Slot, ctx: ItemCtx) {
   const rhythmAt = (x: number) => rhythmItem(id, x);
   const memoryAt = (x: number) => memoryItem(id, x, s.name);
   const melodyAt = (x: number) => melodyItem(id, x, s.name);
-  if (s.track === 'degree') degreeScreen(degreeItem(id, seed(), weak), ctx);
+  if (s.track === 'degree') {
+    if (isTonicSkill(id)) tonicScreen(fixed !== undefined ? tonicItem(id, fixed) : tonicItem(id, seed(), weak), ctx);
+    else degreeScreen(degreeItem(id, seed(), weak), ctx);
+  }
   else if (s.track === 'harmony') harmonyScreen(harmonyItem(id, seed(), weak), ctx);
   else if (s.track === 'memory') memoryScreen(fixed !== undefined ? memoryAt(fixed) : bestOf(memoryAt, (it) => contentTags(it.notes, it.fifths, false, it.minor), seed(), weak), ctx);
   else if (s.track === 'rhythm') solve(fixed !== undefined ? rhythmAt(fixed) : bestOf(rhythmAt, (it) => contentTags(it.notes, it.fifths, true), seed(), weak), { ...ctx, rhythm: true });

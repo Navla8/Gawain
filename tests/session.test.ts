@@ -14,16 +14,16 @@ test('처음에는 받아쓰기의 선수 단원(계이름 도~솔, 리듬 4분�
   const plan = planMatch(p, '2026-11-01');
   assert.ok(plan.length >= 6);
   assert.ok(plan.every((s) => s.role === 'learn'));
-  assert.deepEqual(['degree', 'rhythm', 'dictation'].map((t) => frontier(p, t as never)), ['d0a', 'r1', 'g1a']);
+  assert.deepEqual(['degree', 'rhythm', 'dictation'].map((t) => frontier(p, t as never)), ['k0a', 'r1', 'g1a']);
   assert.equal(plan.filter((s) => s.track === 'dictation').length, 0);
-  assert.equal(learnUnit(p, 'dictation'), 'd0a'); // 받아쓰기 자리는 선수 단원 유형의 지금 단원으로
+  assert.equal(learnUnit(p, 'dictation'), 'k0a'); // 받아쓰기 자리는 선수 단원 유형의 지금 단원으로
 });
 
 test('선수 단원을 다 익히면 받아쓰기가 열리고, 다음 받아쓰기 단원은 그 선수 단원을 기다린다', () => {
-  const p = computeProgress(masterAll(['d0a', 'd0b', 'r1', 'm1', 'g1a']));
+  const p = computeProgress(masterAll(['k0a', 'k0b', 'k0c', 'k0d', 'd0a', 'd0b', 'r1', 'm1', 'g1a']));
   assert.equal(frontier(p, 'dictation'), 'g1b');
   assert.equal(learnUnit(p, 'dictation'), 'd1a'); // g1b는 계이름 장음계 순차(d1a)·따라 치기 2마디(m2)가 먼저
-  const q = computeProgress(masterAll(['d0a', 'd0b', 'd1a', 'd1b', 'r1', 'm1', 'm2', 'g1a']));
+  const q = computeProgress(masterAll(['k0a', 'k0b', 'k0c', 'k0d', 'd0a', 'd0b', 'd1a', 'd1b', 'r1', 'm1', 'm2', 'g1a']));
   assert.equal(learnUnit(q, 'dictation'), 'g1b');
   assert.equal(planMatch(q, '2026-11-01').filter((s) => s.track === 'dictation').length, 3);
 });
@@ -39,7 +39,7 @@ test('한 판은 받아쓰기 3문제 + 짧은 문항으로 약 9분', () => {
 });
 
 test('숙달하고 점검일이 안 된 단원은 내지 않고, 점검일이 되면 그 단원을 담은 가장 어려운 숙달 단원으로 점검', () => {
-  const p = computeProgress(masterAll(['d0a', 'd0b', 'd1a', 'd1b', 'r1', 'g1a']));
+  const p = computeProgress(masterAll(['k0a', 'k0b', 'k0c', 'k0d', 'd0a', 'd0b', 'd1a', 'd1b', 'r1', 'g1a']));
   const today = planMatch(p, '2026-11-02');
   assert.ok(!today.some((s) => s.role === 'review'));
   assert.equal(frontier(p, 'degree'), 'd2a'); // 다른 유형(g1b)을 기다리지 않고 L2로
@@ -47,8 +47,8 @@ test('숙달하고 점검일이 안 된 단원은 내지 않고, 점검일이 �
   assert.ok(today.filter((s) => s.track === 'dictation').every((s) => s.role === 'learn')); // g1b를 익힘
   const later = planMatch(p, '2026-11-04');
   const rv = later.filter((s) => s.role === 'review');
-  // d1b(으뜸화음 도약)에는 순차진행이 없어서 d1a(d0b·d0a를 담음)를 따로 점검한다
-  assert.deepEqual(rv.map((s) => s.skill).sort(), ['d1a', 'd1b', 'g1a', 'r1']);
+  // d1b(으뜸화음 도약)에는 순차진행이 없어서 d1a(d0b·d0a를 담음)를 따로 점검한다. k0b는 k0a를 담는다
+  assert.deepEqual(rv.map((s) => s.skill).sort(), ['d1a', 'd1b', 'g1a', 'k0b', 'k0c', 'k0d', 'r1']);
 });
 
 test('점검에서 틀리면 한 단계씩 쉬운 숙달 단원으로 내려간다', () => {
@@ -174,7 +174,7 @@ test('모두 숙달하고 점검할 것도 없으면 가장 어려운 단원으�
 
 test('배치고사: 유형마다 이분 탐색해 끝난다', () => {
   // 실력: 계이름 d2b까지, 리듬 r1까지, 기억 m2까지, 받아쓰기 g1c까지, 화성 h2a까지 한다고 가정
-  const can: Record<string, number> = { degree: 5, rhythm: 0, memory: 1, dictation: 2, harmony: 1 };
+  const can: Record<string, number> = { degree: 9, rhythm: 0, memory: 1, dictation: 2, harmony: 1 };
   const results: { skill: string; ok: boolean }[] = [];
   for (let slot = nextPlacement(results); slot; slot = nextPlacement(results)) {
     const i = ladder(slot.track).findIndex((s) => s.id === slot!.skill);
@@ -229,7 +229,7 @@ test('covers는 생성기가 95% 이상 넣는 쌍만 남긴다(H4, M10)', () =>
   ];
   for (const [up, down] of drop) assert.ok(!within(up).includes(down), `${up} ⊅ ${down}`);
   const keep: [string, string][] = [
-    ['g2b', 'g2a'], ['g2e', 'g1c'], ['g3e', 'g3d'], ['g3f', 'g3e'], ['g5c', 'g3f'], ['g5b', 'g5c'], ['g5b', 'g3e'], ['r4b', 'r3c'],
+    ['k0b', 'k0a'], ['g2b', 'g2a'], ['g2e', 'g1c'], ['g3e', 'g3d'], ['g3f', 'g3e'], ['g5c', 'g3f'], ['g5b', 'g5c'], ['g5b', 'g3e'], ['r4b', 'r3c'],
   ];
   for (const [up, down] of keep) assert.ok(within(up).includes(down), `${up} ⊃ ${down}`);
 });

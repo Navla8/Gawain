@@ -121,7 +121,7 @@ test('레벨은 유형마다 따로 오르고, 전체 레벨은 가장 낮은 �
   assert.equal(p0.level, 0);
   assert.deepEqual(p0.trackLevels, { degree: 0, rhythm: 1, memory: 1, dictation: 1, harmony: 1 });
   // 계이름만 L0·L1을 다 숙달해도 L2 계이름 단원으로 넘어간다(다른 유형에 막히지 않음)
-  const deg = ['d0a', 'd0b', 'd1a', 'd1b'].flatMap((id) => learn(id, 1));
+  const deg = ['k0a', 'k0b', 'k0c', 'k0d', 'd0a', 'd0b', 'd1a', 'd1b'].flatMap((id) => learn(id, 1));
   const p1 = computeProgress(deg);
   assert.deepEqual(p1.trackLevels, { degree: 2, rhythm: 1, memory: 1, dictation: 1, harmony: 1 });
   assert.equal(p1.level, 1);
@@ -188,9 +188,9 @@ test('연속 실패가 4번에 못 미치거나 중간에 통과하면 레벨을
 });
 
 test('사다리 첫 단원은 연속으로 틀려도 내려갈 곳이 없다', () => {
-  const p = computeProgress([0, 1, 2, 3, 4].map(() => att(0, 'd0a', 0.5)));
-  assert.equal(frontier(p, 'degree'), 'd0a');
-  assert.equal(p.skills.d0a.fails, 5);
+  const p = computeProgress([0, 1, 2, 3, 4].map(() => att(0, 'k0a', 0.5)));
+  assert.equal(frontier(p, 'degree'), 'k0a');
+  assert.equal(p.skills.k0a.fails, 5);
 });
 
 // 능숙도 숙달(프롬프트 2026-11-17 14:58, 15:05)

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { degreeItem, rhythmItem, degreeName } from '../src/engine/drills.ts';
+import { degreeItem, isTonicSkill, rhythmItem, degreeName } from '../src/engine/drills.ts';
 import { ladder } from '../src/engine/curriculum.ts';
 import { barProblems, toEvents } from '../src/engine/score.ts';
 import { barTicks } from '../src/engine/types.ts';
@@ -8,11 +8,11 @@ import { barTicks } from '../src/engine/types.ts';
 const pc = (m: number) => ((m % 12) + 12) % 12;
 
 test('계이름 듣기: 같은 시드는 같은 문항, 답은 늘 버튼 안에 있다', () => {
-  for (const s of ladder('degree')) {
+  for (const s of ladder('degree').filter((x) => !isTonicSkill(x.id))) {
     assert.deepEqual(degreeItem(s.id, 7), degreeItem(s.id, 7));
     for (let seed = 1; seed <= 300; seed++) {
       const it = degreeItem(s.id, seed);
-      assert.ok(it.names.length >= 2 && it.names.length <= 4, `${s.id} ${seed}: 음 개수`);
+      assert.ok(s.id === 'k0d' ? it.names.length === 1 : it.names.length >= 2 && it.names.length <= 4, `${s.id} ${seed}: 음 개수`);
       assert.ok(it.names.every((n) => it.choices.includes(n)), `${s.id} ${seed}: ${it.names} ⊄ ${it.choices}`);
       assert.ok(it.midis.every((m) => m >= 48 && m <= 84), `${s.id} ${seed}: 음역`);
       // 음계를 칠 으뜸음이 조표와 맞는다(단조는 라)

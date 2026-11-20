@@ -7,11 +7,13 @@ import { computeProgress, isDue, sinceReset } from './engine/progress.ts';
 import { EST, wrongIds } from './engine/session.ts';
 import { playKey, stopAll } from './audio/synth.ts';
 import type { Problem } from './engine/types.ts';
+import type { TonicItem } from './engine/drills.ts';
 import { favoriteIds, load, merge, setSaveFailHandler, setSettings, settings } from './store.ts';
 import { SyncError, disconnect, startAutoSync, sync, syncState } from './sync.ts';
 import { app, card, clockText, h, header, nav, pct, toast } from './ui/dom.ts';
 import { pianoKeys } from './ui/keyboard.ts';
 import { solve } from './ui/dictation.ts';
+import { tonicScreen } from './ui/degree.ts';
 import { memoryScreen } from './ui/memory.ts';
 import { matchPlan, startFavorites, startMatch, startPlacement } from './ui/match.ts';
 import { skillsScreen } from './ui/skills.ts';
@@ -170,7 +172,8 @@ function pianoRoom() {
 }
 
 /** 자유 연습 한 문제 */
-const practice = (p: Problem, next: () => void) => (p.id.startsWith('mem-') ? memoryScreen(p, { next }) : solve(p, { next }));
+const practice = (p: Problem | TonicItem, next: () => void) =>
+  'candidates' in p ? tonicScreen(p, { next }) : p.id.startsWith('mem-') ? memoryScreen(p, { next }) : solve(p, { next });
 
 /** 오늘 목표 진행 링 */
 function ring(progress: number, big: string, small: string) {

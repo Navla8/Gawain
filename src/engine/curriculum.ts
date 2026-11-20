@@ -40,6 +40,11 @@ export const LEVELS = [
 export const MAX_LEVEL = 5;
 
 export const SKILLS: Skill[] = [
+  // 조성 잡기(기획 §M11): 카덴츠로 도를 세우고 유지하는 사이 단원. 기존 사용자의 레벨을 뒤로 돌리지 않게 bridge
+  { id: 'k0a', track: 'degree', level: 0, name: '도 찾기 (두 음)', bridge: true },
+  { id: 'k0b', track: 'degree', level: 0, name: '도 찾기 (네 음)', covers: ['k0a'], bridge: true },
+  { id: 'k0c', track: 'degree', level: 0, name: '도 붙잡기', bridge: true },
+  { id: 'k0d', track: 'degree', level: 0, name: '첫 음 계이름', bridge: true },
   { id: 'd0a', track: 'degree', level: 0, name: '도·레·미' },
   { id: 'd0b', track: 'degree', level: 0, name: '도~솔', covers: ['d0a'] },
   { id: 'd1a', track: 'degree', level: 1, name: '장음계 순차진행', covers: ['d0b'] },
