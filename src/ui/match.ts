@@ -115,7 +115,7 @@ function show(run: Run, slot: Slot, step: [number, number]) {
   };
   // 대련에서 첫 진입·재진입 단원은 첫 문항 전에 맛보기를 끼운다. 배치고사는 제외(기획 §M12.1)
   const need = run.kind === 'match' ? introNeed(sinceReset(load().attempts), id) : undefined;
-  if (need) { startIntro(id, need, () => present(id, slot, ctx)); return; }
+  if (need) { startIntro(id, need, () => present(id, slot, ctx), () => nav.home()); return; }
   present(id, slot, ctx);
 }
 

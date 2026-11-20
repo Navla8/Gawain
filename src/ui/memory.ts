@@ -174,7 +174,7 @@ function playbackResult(p: Problem, answer: number[], r: GradeResult, ctx: ItemC
     h('div', { class: 'scores' + (perfect ? ' perfect' : '') },
       h('div', {}, h('b', {}, pct(r.pitchScore)), h('span', {}, '음 순서')),
     ),
-    ctx.skill ? h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '통과' : '80%에 못 미쳤어요', ctx.placement ? '' : h('span', {}, ok ? '' : ' · 이 단원을 더 연습해요')) : '',
+    ctx.skill && !ctx.intro ? h('p', { class: 'verdict' + (ok ? ' ok' : '') }, ok ? '통과' : '80%에 못 미쳤어요', ctx.placement ? '' : h('span', {}, ok ? '' : ' · 이 단원을 더 연습해요')) : '',
     h('div', { class: 'slots seq' }, ...items),
     perfect ? h('p', { class: 'great' }, '완벽해요!') : '',
     h('div', { class: 'actions' },
