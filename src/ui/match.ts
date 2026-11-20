@@ -1,5 +1,5 @@
 import { LEVELS, MAX_LEVEL, TRACKS, ladder, skill, trackLevelText } from '../engine/curriculum.ts';
-import { bestOf, blocker, classify, computeProgress, sinceReset, weakness, type Progress } from '../engine/progress.ts';
+import { bestOf, blocker, classify, computeProgress, introNeed, sinceReset, weakness, type Progress } from '../engine/progress.ts';
 import { MAX_TOTAL, frontier, isExam, learnUnit, nextPlacement, placementLeft, planMatch, retryIds, stepDown, type Slot } from '../engine/session.ts';
 import { contentTags } from '../engine/grade.ts';
 import { degreeItem, isTonicSkill, rhythmItem, tonicItem } from '../engine/drills.ts';
@@ -13,6 +13,7 @@ import { solve, type ItemCtx } from './dictation.ts';
 import { degreeScreen, tonicScreen } from './degree.ts';
 import { harmonyScreen } from './harmony.ts';
 import { memoryScreen } from './memory.ts';
+import { startIntro } from './intro.ts';
 import { harmonyItem } from '../engine/harmony.ts';
 
 // 대련(원터치 통합 테스트)과 배치고사 진행 (기획 M3)
@@ -112,21 +113,28 @@ function show(run: Run, slot: Slot, step: [number, number]) {
     },
     next: () => { run.i++; next(run); },
   };
+  // 대련에서 첫 진입·재진입 단원은 첫 문항 전에 맛보기를 끼운다. 배치고사는 제외(기획 §M12.1)
+  const need = run.kind === 'match' ? introNeed(sinceReset(load().attempts), id) : undefined;
+  if (need) { startIntro(id, need, () => present(id, slot, ctx)); return; }
   present(id, slot, ctx);
 }
 
 function drillOne(id: string, back: () => void, next: () => void) {
   stopAll();
-  const p = progressNow();
+  const attempts = sinceReset(load().attempts);
+  const p = computeProgress(attempts);
   const s = skill(id)!;
   const counted = classify(p, id) !== 'waiting' && !blocker(p, id);
   const slot: Slot = { track: s.track, skill: id, role: p.skills[id].mastered ? 'review' : 'learn' };
-  present(id, slot, {
+  const ctx: ItemCtx = {
     ...(counted && { skill: id }),
     ...(counted && isExam(p, slot) && { plays: EXAM_PLAYS[s.track], exam: true }),
     back,
     next,
-  });
+  };
+  const need = introNeed(attempts, id);
+  if (need) { startIntro(id, need, () => present(id, slot, ctx), back); return; }
+  present(id, slot, ctx);
 }
 
 /**

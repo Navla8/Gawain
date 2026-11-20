@@ -39,8 +39,9 @@ function playbackScreen(p: Problem, ctx: ItemCtx) {
   const truthMidis = toEvents(p.notes).filter((e) => e.midi !== null).map((e) => e.midi!);
   const first = truthMidis[0];
   const answer: number[] = [];
-  const maxPlays = Math.min(ctx.plays ?? 1, p.plays ?? 1);
+  const maxPlays = ctx.intro ? Infinity : Math.min(ctx.plays ?? 1, p.plays ?? 1);
   let plays = maxPlays;
+  let playCount = 0;
   let playing = false;
   const set = settings();
   const melodyClick = set.melodyClick && !ctx.exam;
@@ -50,12 +51,13 @@ function playbackScreen(p: Problem, ctx: ItemCtx) {
   const scaleBtn = h('button', { class: 'ghost', onclick: () => run(playCadence(p.tonic, p.minor)) }, '카덴츠 듣기');
   const seqBox = h('div', { class: 'slots seq' });
   const status = h('p', { class: 'status' });
-  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement ? '' : tipLine(nextTip('memory', 'solve')));
+  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement || ctx.intro ? '' : tipLine(nextTip('memory', 'solve')));
 
   function listen() {
     if (plays <= 0) return;
-    const withCadence = plays === maxPlays;
-    plays--;
+    const withCadence = playCount === 0;
+    playCount++;
+    if (Number.isFinite(plays)) plays--;
     run(playProblem(p, withCadence, melodyClick));
   }
   function run(sec: number) {
@@ -85,11 +87,12 @@ function playbackScreen(p: Problem, ctx: ItemCtx) {
       at: new Date().toISOString(), problemId: p.id,
       answer: mine.map((midi) => ({ midi, dur: TPB })),
       pitchScore: r.pitchScore, rhythmScore: 1,
-      plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
+      plays: playCount, seconds: Math.round((Date.now() - started) / 1000),
       ...(ctx.skill && { skill: ctx.skill, miss }),
       ...(ctx.placement && { placement: true }),
       ...(ctx.retry && { retry: true }),
       ...(ctx.fix && { fix: true }),
+      ...(ctx.intro && { intro: true }),
     });
     const ok = passed({ pitchScore: r.pitchScore, rhythmScore: 1 });
     ctx.onGraded?.(ok);
@@ -97,7 +100,7 @@ function playbackScreen(p: Problem, ctx: ItemCtx) {
   }
 
   function draw() {
-    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
+    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', ...(Number.isFinite(plays) ? [h('span', { class: 'count' }, `${plays}`)] : [])] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', !playing && plays <= 0);
     playBtn.classList.toggle('stop', playing);
     scaleBtn.toggleAttribute('disabled', playing);
@@ -118,6 +121,7 @@ function playbackScreen(p: Problem, ctx: ItemCtx) {
   const keys = pianoKeys(onKey, KEY_LOW);
   app.replaceChildren(
     header(p.title, ctx.step, ctx.back),
+    ctx.introCue ?? '',
     h('p', { class: 'info' }, `${keyName(p)} · ${p.bars}마디(${truthMidis.length}음) · 첫 음 ${solfa(first, p.fifths, keyRead(p))} ${noteName(first, p.fifths, p.minor)} · 리듬 없이 음 순서만 건반으로 쳐요`),
     ctx.exam || !melodyClick || !keySound
       ? h('p', { class: 'info' }, [ctx.exam && `실전 조건 · 재생 ${maxPlays}회`, !melodyClick && '선율 중 메트로놈 없음', !keySound && '건반 소리 없음'].filter(Boolean).join(' · '))
@@ -177,13 +181,16 @@ function playbackResult(p: Problem, answer: number[], r: GradeResult, ctx: ItemC
       h('button', { onclick: () => { stopAll(); playNotes(p.notes, p.tempo); } }, '정답 듣기'),
       h('button', { onclick: () => { stopAll(); playNotes(answer.map((midi) => ({ midi, dur: TPB })), p.tempo); } }, '내 답 듣기'),
       h('button', { class: 'stop-all', onclick: stopAll }, '■  정지'),
-      h('button', { class: 'half', onclick: () => playbackScreen(p, practice) }, '다시 치기'),
+      ctx.intro ? '' : h('button', { class: 'half', onclick: () => playbackScreen(p, practice) }, '다시 치기'),
       h('button', { class: 'half', onclick: () => { stopAll(); playCadence(p.tonic, p.minor); } }, '카덴츠 듣기'),
-      h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
+      ctx.intro && !ok && ctx.retrySame
+        ? h('button', { class: 'primary', onclick: ctx.retrySame }, '다시 풀기')
+        : h('button', { class: 'primary', onclick: ctx.next }, ctx.intro ? (ctx.step && ctx.step[0] >= ctx.step[1] ? '본문제 시작' : '다음') : (ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제')),
     ),
-    !perfect && !ctx.placement ? tipLine(nextTip('memory', 'pitch')) : '',
+    !perfect && !ctx.placement && !ctx.intro ? tipLine(nextTip('memory', 'pitch')) : '',
   );
-  if (perfect) playNotes([{ midi: p.tonic + 12, dur: 3 }, { midi: p.tonic + 19, dur: 3 }, { midi: p.tonic + 24, dur: 12 }], 120);
+  if (ctx.intro && !ok) playNotes(p.notes, p.tempo);
+  else if (perfect) playNotes([{ midi: p.tonic + 12, dur: 3 }, { midi: p.tonic + 19, dur: 3 }, { midi: p.tonic + 24, dur: 12 }], 120);
 }
 
 // ───────── 강박 계이름 (m3) ─────────
@@ -196,8 +203,9 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
   const truth = beats.map((b) => b.name);
   const choiceMidis = MAJOR_SEMI.map((s) => p.tonic + s);
   const answer: string[] = [];
-  const maxPlays = Math.min(ctx.plays ?? 2, p.plays ?? 2);
+  const maxPlays = ctx.intro ? Infinity : Math.min(ctx.plays ?? 2, p.plays ?? 2);
   let plays = maxPlays;
+  let playCount = 0;
   let playing = false;
   let graded: { answer: string[]; pitchScore: number; right: number } | undefined;
   const set = settings();
@@ -208,12 +216,13 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' });
   const foot = h('div', { class: 'degree-foot' });
-  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement ? '' : tipLine(nextTip('memory', 'solve')));
+  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement || ctx.intro ? '' : tipLine(nextTip('memory', 'solve')));
 
   function listen() {
     if (plays <= 0) return;
-    const withCadence = plays === maxPlays;
-    plays--;
+    const withCadence = playCount === 0;
+    playCount++;
+    if (Number.isFinite(plays)) plays--;
     run(playProblem(p, withCadence, melodyClick));
   }
   function run(sec: number) {
@@ -239,29 +248,32 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
   function finish(giveUp = false) {
     if (graded) return;
     stopAll();
+    playing = false;
     const mine = giveUp ? [] : [...answer];
     const g = gradeDownbeats(truth, mine);
     graded = { answer: mine, pitchScore: g.pitchScore, right: g.right };
     record({
       at: new Date().toISOString(), problemId: p.id, answer: mine,
       pitchScore: g.pitchScore, rhythmScore: 1,
-      plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
+      plays: playCount, seconds: Math.round((Date.now() - started) / 1000),
       ...(ctx.skill && { skill: ctx.skill, miss: g.miss }),
       ...(ctx.placement && { placement: true }),
       ...(ctx.retry && { retry: true }),
       ...(ctx.fix && { fix: true }),
+      ...(ctx.intro && { intro: true }),
     });
     const ok = passed({ pitchScore: g.pitchScore, rhythmScore: 1 });
     ctx.onGraded?.(ok);
-    if (g.pitchScore === 1) playNotes([{ midi: p.tonic + 12, dur: 3 }, { midi: p.tonic + 19, dur: 3 }, { midi: p.tonic + 24, dur: 12 }], 120);
-    tipSlot.replaceChildren(...(!ctx.placement && g.pitchScore < 1 ? [tipLine(nextTip('memory', 'pitch'))] : []));
+    if (ctx.intro && !ok) playNotes(beats.map((b) => ({ midi: b.midi, dur: TPB })), 72);
+    else if (g.pitchScore === 1) playNotes([{ midi: p.tonic + 12, dur: 3 }, { midi: p.tonic + 19, dur: 3 }, { midi: p.tonic + 24, dur: 12 }], 120);
+    tipSlot.replaceChildren(...(!ctx.placement && !ctx.intro && g.pitchScore < 1 ? [tipLine(nextTip('memory', 'pitch'))] : []));
     draw();
   }
 
   function draw() {
     const done = !!graded;
     const shown = graded ? graded.answer : answer;
-    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
+    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', ...(Number.isFinite(plays) ? [h('span', { class: 'count' }, `${plays}`)] : [])] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', done || (!playing && plays <= 0));
     playBtn.classList.toggle('stop', playing);
     scaleBtn.toggleAttribute('disabled', playing);
@@ -284,7 +296,9 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
         h('div', { class: 'actions' },
           h('button', { class: 'half', onclick: () => { stopAll(); playNotes(p.notes, p.tempo); } }, '정답 듣기'),
           h('button', { class: 'half', onclick: () => { stopAll(); playNotes(beats.map((b) => ({ midi: b.midi, dur: TPB })), 72); } }, '강박만 듣기'),
-          h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
+          ctx.intro && !ok && ctx.retrySame
+            ? h('button', { class: 'primary', onclick: ctx.retrySame }, '다시 풀기')
+            : h('button', { class: 'primary', onclick: ctx.next }, ctx.intro ? (ctx.step && ctx.step[0] >= ctx.step[1] ? '본문제 시작' : '다음') : (ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제')),
         ),
       );
     } else {
@@ -297,6 +311,7 @@ function downbeatScreen(p: Problem, ctx: ItemCtx) {
 
   app.replaceChildren(
     header(p.title, ctx.step, ctx.back),
+    ctx.introCue ?? '',
     h('p', { class: 'info' }, `${keyName(p)} · ${timeSignature(p).join('/')} · ${p.bars}마디 · 마디마다 첫 박(강박) 계이름을 고르세요`),
     ctx.exam || !melodyClick
       ? h('p', { class: 'info' }, [ctx.exam && `실전 조건 · 재생 ${maxPlays}회`, !melodyClick && '선율 중 메트로놈 없음'].filter(Boolean).join(' · '))

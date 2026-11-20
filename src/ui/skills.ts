@@ -6,6 +6,7 @@ import { stopAll } from '../audio/synth.ts';
 import { favoriteIds, load, setFavorite } from '../store.ts';
 import { app, card, h, header } from './dom.ts';
 import { startDrill, startFavorites, startPlacement } from './match.ts';
+import { startIntro } from './intro.ts';
 
 // 실력 화면: 레벨 사다리, 단원 분류(쉬움·안정·익히는 중·약함·차례 전)와 점검일, 약한 단원, 레벨 기록 (기획 M3, M4)
 
@@ -74,13 +75,16 @@ export function skillsScreen() {
     const rows = SKILLS.filter((s) => s.level === L.level).map((s) => {
       const on = favs.has(s.id);
       return h('li', {}, h('span', { class: 'tag' }, TRACK_NAME[s.track]), h('b', {}, s.name), state(s.id), misses(s.id),
-        'planned' in L ? '' : h('button', {
-          class: 'star' + (on ? ' on' : ''),
-          'aria-label': '즐겨찾기',
-          'aria-pressed': String(on),
-          onclick: () => { const y = window.scrollY; setFavorite(s.id, !on); skillsScreen(); window.scrollTo(0, y); },
-        }, on ? '★' : '☆'),
-        'planned' in L ? '' : h('button', { class: 'drill', onclick: () => startDrill(s.id, skillsScreen), 'aria-label': `${s.name} 풀기` }, '풀기'));
+        'planned' in L ? '' : h('div', { class: 'unit-btns' },
+          h('button', {
+            class: 'star' + (on ? ' on' : ''),
+            'aria-label': '즐겨찾기',
+            'aria-pressed': String(on),
+            onclick: () => { const y = window.scrollY; setFavorite(s.id, !on); skillsScreen(); window.scrollTo(0, y); },
+          }, on ? '★' : '☆'),
+          h('button', { class: 'drill intro-open', onclick: () => startIntro(s.id, 'first', skillsScreen, skillsScreen), 'aria-label': `${s.name} 소개 다시 보기` }, '소개'),
+          h('button', { class: 'drill', onclick: () => startDrill(s.id, skillsScreen), 'aria-label': `${s.name} 풀기` }, '풀기'),
+        ));
     });
     return h('section', { class: 'lvl' + (L.level === lv ? ' current' : '') + ('planned' in L ? ' planned' : '') },
       h('header', {}, h('b', {}, `L${L.level}`), h('span', {}, L.name), h('em', {}, status)),

@@ -17,8 +17,9 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
   setCounting(true);
   const started = Date.now();
   const answer: string[] = [];
-  const maxPlays = ctx.plays ?? MAX_PLAYS;
+  const maxPlays = ctx.intro ? Infinity : (ctx.plays ?? MAX_PLAYS);
   let plays = maxPlays;
+  let playCount = 0;
   let playing = false;
   let done = false;
   const label = (x: string) => (it.given ? pretty(x) : x);
@@ -27,12 +28,13 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' + (it.given ? '' : ' wide') });
   const foot = h('div', { class: 'degree-foot' });
-  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement ? '' : tipLine(nextTip('harmony', 'solve')));
+  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement || ctx.intro ? '' : tipLine(nextTip('harmony', 'solve')));
 
   const sound = () => playChords(it.chords, it.arpeggio);
   function listen() {
     if (plays <= 0) return;
-    plays--;
+    playCount++;
+    if (Number.isFinite(plays)) plays--;
     run(sound());
   }
   function run(sec: number) {
@@ -57,21 +59,24 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
   function finish(giveUp = false) {
     done = true;
     stopAll();
+    playing = false;
     const right = it.answers.filter((n, i) => answer[i] === n).length;
     const score = giveUp ? 0 : right / it.answers.length;
     record({
       at: new Date().toISOString(), problemId: it.id, answer: [...answer], pitchScore: score, rhythmScore: 1,
-      plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
+      plays: playCount, seconds: Math.round((Date.now() - started) / 1000),
       miss: it.answers.filter((n, i) => answer[i] !== n),
-      ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }),
+      ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }), ...(ctx.intro && { intro: true }),
     });
-    ctx.onGraded?.(passed({ pitchScore: score, rhythmScore: 1 }));
-    tipSlot.replaceChildren(...(!ctx.placement && score < 1 ? [tipLine(nextTip('harmony', 'pitch'))] : []));
-    draw();
+    const ok = passed({ pitchScore: score, rhythmScore: 1 });
+    ctx.onGraded?.(ok);
+    tipSlot.replaceChildren(...(!ctx.placement && !ctx.intro && score < 1 ? [tipLine(nextTip('harmony', 'pitch'))] : []));
+    if (ctx.intro && !ok) run(sound());
+    else draw();
   }
 
   function draw() {
-    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
+    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', ...(Number.isFinite(plays) ? [h('span', { class: 'count' }, `${plays}`)] : [])] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', done || (!playing && plays <= 0));
     playBtn.classList.toggle('stop', playing);
 
@@ -94,7 +99,9 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
         h('div', { class: 'actions' },
           h('button', { class: 'half', onclick: () => run(sound()) }, '다시 듣기'),
           h('button', { class: 'half', onclick: stop }, '■  정지'),
-          h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
+          ctx.intro && !ok && ctx.retrySame
+            ? h('button', { class: 'primary', onclick: ctx.retrySame }, '다시 풀기')
+            : h('button', { class: 'primary', onclick: ctx.next }, ctx.intro ? (ctx.step && ctx.step[0] >= ctx.step[1] ? '본문제 시작' : '다음') : (ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제')),
         ),
       );
     } else {
@@ -107,6 +114,7 @@ export function harmonyScreen(it: HarmonyItem, ctx: ItemCtx) {
 
   app.replaceChildren(
     header(it.title, ctx.step, ctx.back),
+    ctx.introCue ?? '',
     h('p', { class: 'info' }, it.prompt),
     h('div', { class: 'listen' }, playBtn),
     slots,

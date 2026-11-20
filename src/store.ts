@@ -22,6 +22,8 @@ export interface Attempt {
   placementEnd?: boolean;
   /** 결과 화면에서 정답을 본 직후의 '고쳐 보기'·'처음부터' 시도(오답 풀을 비우지 않음) */
   fix?: boolean;
+  /** 단원 소개(맛보기) 시도(숙달·오답 풀·레벨에서 제외, 기획 §M12.1) */
+  intro?: boolean;
   /** 틀린 요소(계이름 듣기: 틀린 계이름) */
   miss?: string[];
 }

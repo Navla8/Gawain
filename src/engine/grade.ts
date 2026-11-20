@@ -109,6 +109,33 @@ export function gradeExtract(p: Problem, answerNotes: Note[], range = p.extract!
   return grade(sliceBars(p.notes, barTicks(p), range[0], range[1]), answerNotes);
 }
 
+/** 단원 소개 맛보기용(기획 §M12.1): 앞 maxBars마디만 남긴 문제 사본. 못갖춘마디·2성부·추출 구간도 마디 길이에 맞게 자른다 */
+export function firstBars(p: Problem, maxBars = 2): Problem {
+  const len = barTicks(p);
+  const bars = Math.min(p.bars, maxBars);
+  const limit = bars * len;
+  const cut = (notes: Note[]): Note[] => {
+    const out: Note[] = [];
+    let t = 0;
+    for (const n of notes) {
+      if (t >= limit) break;
+      const dur = Math.min(n.dur, limit - t);
+      out.push({ ...n, dur });
+      t += dur;
+    }
+    if (out.length && out[out.length - 1].tie) delete out[out.length - 1].tie;
+    return out;
+  };
+  const { extract: _ex, modulation, ...rest } = p;
+  return {
+    ...rest,
+    bars,
+    notes: cut(p.notes),
+    ...(p.bass && { bass: cut(p.bass) }),
+    ...(modulation && modulation.at < limit && { modulation }),
+  };
+}
+
 /** 음높이를 맞게 적은 음(ok·rhythm)은 정답 음의 표기 힌트(Note.spell)를 물려받아 같은 글자로 그려진다. 새 배열을 돌려준다 */
 export function inheritSpell(items: GradeItem[], truthNotes: Note[], answer: Note[]): Note[] {
   const out = answer.map((n) => ({ ...n }));

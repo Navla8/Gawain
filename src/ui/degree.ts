@@ -18,8 +18,9 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
   setCounting(true);
   const started = Date.now();
   const answer: string[] = [];
-  const maxPlays = ctx.plays ?? MAX_PLAYS;
+  const maxPlays = ctx.intro ? Infinity : (ctx.plays ?? MAX_PLAYS);
   let plays = maxPlays;
+  let playCount = 0;
   let playing = false;
   let done = false;
 
@@ -36,12 +37,13 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' });
   const foot = h('div', { class: 'degree-foot' });
-  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement ? '' : tipLine(nextTip('degree', 'solve')));
+  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement || ctx.intro ? '' : tipLine(nextTip('degree', 'solve')));
 
   function listen() {
     if (plays <= 0) return;
-    const withCadence = k0d || plays === maxPlays;
-    plays--;
+    const withCadence = k0d || playCount === 0;
+    playCount++;
+    if (Number.isFinite(plays)) plays--;
     run(playDegrees(it.midis, it.tonic, it.minor, withCadence));
   }
   function run(sec: number) {
@@ -72,20 +74,21 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
     const score = giveUp ? 0 : right / it.names.length;
     record({
       at: new Date().toISOString(), problemId: it.id, answer: [...answer], pitchScore: score, rhythmScore: 1,
-      plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
+      plays: playCount, seconds: Math.round((Date.now() - started) / 1000),
       miss: it.names.filter((n, i) => answer[i] !== n),
-      ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }),
+      ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }), ...(ctx.intro && { intro: true }),
     });
     const ok = passed({ pitchScore: score, rhythmScore: 1 });
     ctx.onGraded?.(ok);
     if (k0d) playDegrees(resMidis, it.tonic, false, false, 96);
+    else if (ctx.intro && !ok) playDegrees(it.midis, it.tonic, it.minor, false);
     else if (score === 1) playDegrees([it.midis.at(-1)!], it.tonic, it.minor, false);
-    tipSlot.replaceChildren(...(!ctx.placement && score < 1 ? [tipLine(nextTip('degree', 'pitch'))] : []));
+    tipSlot.replaceChildren(...(!ctx.placement && !ctx.intro && score < 1 ? [tipLine(nextTip('degree', 'pitch'))] : []));
     draw();
   }
 
   function draw() {
-    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
+    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', ...(Number.isFinite(plays) ? [h('span', { class: 'count' }, `${plays}`)] : [])] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', done || (!playing && plays <= 0));
     playBtn.classList.toggle('stop', playing);
     scaleBtn.toggleAttribute('disabled', playing);
@@ -111,7 +114,9 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
         h('div', { class: 'actions' },
           h('button', { class: 'half', onclick: () => { stopAll(); playDegrees(k0d ? resMidis : it.midis, it.tonic, it.minor, false, k0d ? 96 : 72); } }, k0d ? '도로 풀림 듣기' : '정답 듣기'),
           h('button', { class: 'half', onclick: () => run(playCadence(it.tonic, it.minor)) }, '카덴츠 듣기'),
-          h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
+          ctx.intro && !ok && ctx.retrySame
+            ? h('button', { class: 'primary', onclick: ctx.retrySame }, '다시 풀기')
+            : h('button', { class: 'primary', onclick: ctx.next }, ctx.intro ? (ctx.step && ctx.step[0] >= ctx.step[1] ? '본문제 시작' : '다음') : (ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제')),
         ),
       );
     } else {
@@ -124,6 +129,7 @@ export function degreeScreen(it: DegreeItem, ctx: ItemCtx) {
 
   app.replaceChildren(
     header(it.title, ctx.step, ctx.back),
+    ctx.introCue ?? '',
     h('p', { class: 'info' }, k0d ? '1음 · 재생마다 카덴츠(I–IV–V–I)를 먼저 들려줘요' : `${it.names.length}음 · 첫 재생에 카덴츠(${it.minor ? 'i–iv–V–i' : 'I–IV–V–I'})를 먼저 들려줘요`),
     h('div', { class: 'listen' }, playBtn, scaleBtn),
     slots,
@@ -141,8 +147,9 @@ export function tonicScreen(it: TonicItem, ctx: ItemCtx) {
   stopAll();
   setCounting(true);
   const started = Date.now();
-  const maxPlays = ctx.plays ?? MAX_PLAYS;
+  const maxPlays = ctx.intro ? Infinity : (ctx.plays ?? MAX_PLAYS);
   let plays = maxPlays;
+  let playCount = 0;
   let playing = false;
   let done = false;
   let chosen: number | undefined;
@@ -154,11 +161,12 @@ export function tonicScreen(it: TonicItem, ctx: ItemCtx) {
   const slots = h('div', { class: 'slots' });
   const pad = h('div', { class: 'degree-pad' });
   const foot = h('div', { class: 'degree-foot' });
-  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement ? '' : tipLine(nextTip('degree', 'solve')));
+  const tipSlot = h('div', { class: 'tip-slot' }, ctx.placement || ctx.intro ? '' : tipLine(nextTip('degree', 'solve')));
 
   function listen() {
     if (plays <= 0) return;
-    plays--;
+    playCount++;
+    if (Number.isFinite(plays)) plays--;
     run(playTonic(it.tonic, it.lead, it.candidates, (i) => { active = i; draw(); }));
   }
   function run(sec: number) {
@@ -195,17 +203,17 @@ export function tonicScreen(it: TonicItem, ctx: ItemCtx) {
     const miss = !giveUp && chosen !== undefined && chosen !== it.answer ? [it.candNames[chosen]] : [];
     record({
       at: new Date().toISOString(), problemId: it.id, answer: chosen === undefined ? [] : [it.candNames[chosen]],
-      pitchScore: score, rhythmScore: 1, plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
-      miss, ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }),
+      pitchScore: score, rhythmScore: 1, plays: playCount, seconds: Math.round((Date.now() - started) / 1000),
+      miss, ...(ctx.skill && { skill: ctx.skill }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }), ...(ctx.intro && { intro: true }),
     });
     ctx.onGraded?.(passed({ pitchScore: score, rhythmScore: 1 }));
-    if (ok) playKey(it.candidates[it.answer]);
-    tipSlot.replaceChildren(...(!ctx.placement && score < 1 ? [tipLine(nextTip('degree', 'pitch'))] : []));
+    if (ok || ctx.intro) playKey(it.candidates[it.answer]);
+    tipSlot.replaceChildren(...(!ctx.placement && !ctx.intro && score < 1 ? [tipLine(nextTip('degree', 'pitch'))] : []));
     draw();
   }
 
   function draw() {
-    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
+    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', ...(Number.isFinite(plays) ? [h('span', { class: 'count' }, `${plays}`)] : [])] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', done || (!playing && plays <= 0));
     playBtn.classList.toggle('stop', playing);
     scaleBtn.toggleAttribute('disabled', playing);
@@ -232,7 +240,9 @@ export function tonicScreen(it: TonicItem, ctx: ItemCtx) {
         h('div', { class: 'actions' },
           h('button', { class: 'half', onclick: () => run(playTonic(it.tonic, it.lead, it.candidates, (i) => { active = i; draw(); })) }, '다시 듣기'),
           h('button', { class: 'half', onclick: () => run(playCadence(it.tonic, false)) }, '카덴츠 듣기'),
-          h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
+          ctx.intro && !ok && ctx.retrySame
+            ? h('button', { class: 'primary', onclick: ctx.retrySame }, '다시 풀기')
+            : h('button', { class: 'primary', onclick: ctx.next }, ctx.intro ? (ctx.step && ctx.step[0] >= ctx.step[1] ? '본문제 시작' : '다음') : (ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제')),
         ),
       );
     } else {
@@ -246,6 +256,7 @@ export function tonicScreen(it: TonicItem, ctx: ItemCtx) {
 
   app.replaceChildren(
     header(it.title, ctx.step, ctx.back),
+    ctx.introCue ?? '',
     h('p', { class: 'info' }, info),
     h('div', { class: 'listen' }, playBtn, scaleBtn),
     slots,

@@ -82,13 +82,13 @@ function planReviews(p: Progress, today: string): Slot[] {
 /** 실전 조건(재생 횟수를 줄임): 한 번 이상 점검을 통과한 단원의 점검·실력 확인(기획 §M6.3) */
 export const isExam = (p: Progress, slot: Slot) => (slot.role === 'review' || slot.role === 'check') && p.skills[slot.skill!].reviews >= 1;
 
-export type WrongAttempt = Pick<SkillAttempt, 'at' | 'problemId' | 'skill' | 'placement' | 'fix' | 'pitchScore' | 'rhythmScore'>;
+export type WrongAttempt = Pick<SkillAttempt, 'at' | 'problemId' | 'skill' | 'placement' | 'fix' | 'intro' | 'pitchScore' | 'rhythmScore'>;
 
 function wrongAttempts(attempts: WrongAttempt[]): WrongAttempt[] {
   const latest = new Map<string, WrongAttempt>();
   const counts = new Map<string, number>();
   for (const a of [...attempts].sort((x, y) => x.at.localeCompare(y.at))) {
-    if (!a.problemId || a.placement || a.fix) continue;
+    if (!a.problemId || a.placement || a.fix || a.intro) continue;
     latest.set(a.problemId, a);
     stepWrongCount(counts, a);
   }

@@ -40,6 +40,12 @@ export interface ItemCtx {
   extract?: [number, number];
   /** 풀이·결과 요령 유형(기본: rhythm 또는 dictation) */
   tipTrack?: Track;
+  /** 단원 소개(맛보기) 시도: intro: true로 기록하고 숙달·오답 풀·레벨에서 뺀다(기획 §M12.1) */
+  intro?: boolean;
+  /** 맛보기 상단 안내(예: 첫 문제 정답 미리 듣기) */
+  introCue?: HTMLElement;
+  /** 맛보기에서 틀렸을 때 같은 문제를 다시 풀기 */
+  retrySame?: () => void;
 }
 
 const MAX_PLAYS = 5;
@@ -78,8 +84,9 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
   let cursor = notes.length;
   let selected: number | null = null;
   let base = 12, dotted = false, triplet = false;
-  const maxPlays = Math.min(ctx.plays ?? MAX_PLAYS, p.plays ?? MAX_PLAYS);
+  const maxPlays = ctx.intro ? Infinity : Math.min(ctx.plays ?? MAX_PLAYS, p.plays ?? MAX_PLAYS);
   let plays = maxPlays;
+  let playCount = 0;
   const set = settings();
   const melodyClick = set.melodyClick && !ctx.exam;
   // 리듬 치기 버튼은 음높이가 없어 소리를 그대로 둔다
@@ -117,8 +124,9 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
   /** 준비박 → 메트로놈과 선율. 첫 재생만 카덴츠를 먼저 친다(리듬은 카덴츠 없음) */
   function listen() {
     if (plays <= 0) return;
-    const withCadence = plays === maxPlays && !rhythm;
-    plays--;
+    const withCadence = playCount === 0 && !rhythm;
+    playCount++;
+    if (Number.isFinite(plays)) plays--;
     run(playProblem(p, withCadence, melodyClick));
   }
 
@@ -155,7 +163,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
   const targetNotes = extract ? sliceBars(p.notes, len, extract[0], extract[1]) : p.notes;
   const tipTrack: Track = ctx.tipTrack ?? (rhythm ? 'rhythm' : 'dictation');
   function draw() {
-    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', h('span', { class: 'count' }, `${plays}`)] : ['재생 횟수를 다 썼어요']));
+    playBtn.replaceChildren(...(playing ? ['■  정지'] : plays > 0 ? ['▶  듣기', ...(Number.isFinite(plays) ? [h('span', { class: 'count' }, `${plays}`)] : [])] : ['재생 횟수를 다 썼어요']));
     playBtn.toggleAttribute('disabled', !playing && plays <= 0);
     playBtn.classList.toggle('stop', playing);
     if (scaleBtn) scaleBtn.toggleAttribute('disabled', playing);
@@ -233,8 +241,8 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
     const miss = [...new Set(rs.flatMap((r) => missTags(r, p.fifths, rhythm, p.minor)))];
     record({
       at: new Date().toISOString(), problemId: p.id, answer: answers[0], ...(two && { answerBass: answers[1] }), pitchScore, rhythmScore,
-      plays: maxPlays - plays, seconds: Math.round((Date.now() - started) / 1000),
-      ...(ctx.skill && { skill: ctx.skill, miss }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }), ...(ctx.fix && { fix: true }),
+      plays: playCount, seconds: Math.round((Date.now() - started) / 1000),
+      ...(ctx.skill && { skill: ctx.skill, miss }), ...(ctx.placement && { placement: true }), ...(ctx.retry && { retry: true }), ...(ctx.fix && { fix: true }), ...(ctx.intro && { intro: true }),
     });
     ctx.onGraded?.(passed({ pitchScore, rhythmScore }));
     result(p, answers, rs, ctx);
@@ -273,6 +281,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
   const first = targetNotes.find((n) => n.midi !== null)!.midi!;
   app.replaceChildren(
     header(p.title, ctx.step, ctx.back),
+    ctx.introCue ?? '',
     extract
       ? h('p', { class: 'extract-cue' }, h('span', { class: 'tag' }, '추출 구간'), h('strong', {}, `${extract[0] + 1}~${extract[1]}마디만 적어요`), h('span', {}, `전체 ${p.bars}마디 재생`))
       : '',
@@ -293,7 +302,7 @@ export function solve(p: Problem, ctx: ItemCtx, initial: Note[] = [], initialBas
       ctx.placement ? h('button', { class: 'ghost', onclick: giveUp }, '모르겠어요') : '',
       h('button', { class: 'submit', onclick: submit }, '제출'),
     ),
-    ctx.placement ? '' : tipLine(nextTip(tipTrack, 'solve')),
+    ctx.placement || ctx.intro ? '' : tipLine(nextTip(tipTrack, 'solve')),
   );
   draw();
   aim();
@@ -406,11 +415,13 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
       h('button', { onclick: () => { stopAll(); playVoices(truths, p.tempo); } }, '정답 듣기'),
       h('button', { onclick: () => { stopAll(); playVoices(answers, p.tempo); } }, '내 답 듣기'),
       h('button', { class: 'stop-all', onclick: stopAll }, '■  정지'),
-      h('button', { class: 'half', onclick: () => solve(p, practice, answers[0], answers[1]) }, '고쳐 보기'),
-      h('button', { class: 'half', onclick: () => solve(p, practice) }, '처음부터'),
-      h('button', { class: 'primary', onclick: ctx.next }, ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제'),
+      ctx.intro ? '' : h('button', { class: 'half', onclick: () => solve(p, practice, answers[0], answers[1]) }, '고쳐 보기'),
+      ctx.intro ? '' : h('button', { class: 'half', onclick: () => solve(p, practice) }, '처음부터'),
+      ctx.intro && !ok && ctx.retrySame
+        ? h('button', { class: 'primary', onclick: ctx.retrySame }, '다시 풀기')
+        : h('button', { class: 'primary', onclick: ctx.next }, ctx.intro ? (ctx.step && ctx.step[0] >= ctx.step[1] ? '본문제 시작' : '다음') : (ctx.step && ctx.step[0] >= ctx.step[1] ? '결과 보기' : '다음 문제')),
     ),
-    !perfect && !ctx.placement
+    !perfect && !ctx.placement && !ctx.intro
       ? tipLine(nextTip(
           tipTrack,
           rhythm ? 'rhythm' : pitchScore < 1 && (rhythmScore === 1 || pitchScore <= rhythmScore) ? 'pitch' : 'rhythm',
@@ -424,5 +435,6 @@ function result(p: Problem, answers: Note[][], rs: GradeResult[], ctx: ItemCtx) 
     if (natural > box) svg.style.width = `${Math.max(box, natural * 0.65)}px`;
     svg.style.height = 'auto';
   }
-  if (perfect) playNotes([{ midi: p.tonic + 12, dur: 3 }, { midi: p.tonic + 19, dur: 3 }, { midi: p.tonic + 24, dur: 12 }], 120);
+  if (ctx.intro && !ok) playVoices(truths, p.tempo);
+  else if (perfect) playNotes([{ midi: p.tonic + 12, dur: 3 }, { midi: p.tonic + 19, dur: 3 }, { midi: p.tonic + 24, dur: 12 }], 120);
 }

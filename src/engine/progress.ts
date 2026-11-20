@@ -62,6 +62,8 @@ export interface SkillAttempt {
   retry?: boolean;
   /** 결과 화면에서 정답을 본 직후의 '고쳐 보기'·'처음부터' 시도(오답 풀을 비우지 않음) */
   fix?: boolean;
+  /** 단원 소개(맛보기) 시도: 숙달·오답 풀·레벨 판정에서 뺀다(기획 §M12.1) */
+  intro?: boolean;
 }
 
 export interface SkillState {
@@ -218,12 +220,12 @@ function levels(skills: Record<string, SkillState>) {
   return { trackLevels, level: Math.min(...coreLevels) };
 }
 
-/** 문제별 오답 수(만점 미만, placement·fix 제외, 포기급은 2)를 한 시도만큼 갱신하고 갱신 전·후 수를 돌려준다 */
+/** 문제별 오답 수(만점 미만, placement·fix·intro 제외, 포기급은 2)를 한 시도만큼 갱신하고 갱신 전·후 수를 돌려준다 */
 export function stepWrongCount(
   counts: Map<string, number>,
-  a: Pick<SkillAttempt, 'problemId' | 'placement' | 'fix' | 'pitchScore' | 'rhythmScore' | 'skill'>,
+  a: Pick<SkillAttempt, 'problemId' | 'placement' | 'fix' | 'intro' | 'pitchScore' | 'rhythmScore' | 'skill'>,
 ): [number, number] {
-  if (!a.problemId || a.placement || a.fix) return [0, 0];
+  if (!a.problemId || a.placement || a.fix || a.intro) return [0, 0];
   const prev = counts.get(a.problemId) ?? 0;
   if (attemptScore(a) >= 1) {
     counts.set(a.problemId, 0);
@@ -249,6 +251,7 @@ export function computeProgress(attempts: SkillAttempt[]): Progress {
   let placed = false;
   const list = [...attempts].sort((x, y) => x.at.localeCompare(y.at));
   for (const a of list) {
+    if (a.intro) continue;
     if (a.skill && skill(a.skill) && !a.retry && !a.fix) {
       apply(skills, a);
       // 배치고사는 끝까지 봐야 본 것. 끝 표시가 없는 예전 배치고사는 받아쓰기 사다리가 바뀌어(기획 §M5) 다시 본다
@@ -263,6 +266,37 @@ export function computeProgress(attempts: SkillAttempt[]): Progress {
     if (l !== level) history.push({ at: a.at, level: (level = l) });
   }
   return { skills, ...levels(skills), history, placed };
+}
+
+/** 단원 소개(맛보기) 필요 여부(기획 §M12.1): 시도 기록만으로 계산한다.
+ *  - 'first': intro 시도가 없고 아직 숙달 전(이미 풀어 봤지만 숙달 못 한 단원도 한 번 받음)
+ *  - 'again': 마지막 lapsed·stepped 전환 뒤 intro 시도가 없음 */
+export function introNeed(attempts: SkillAttempt[], skillId: string): 'first' | 'again' | undefined {
+  if (!skill(skillId)) return undefined;
+  const skills: Record<string, SkillState> = Object.fromEntries(TRACKS.flatMap((t) => ladder(t.id)).map((s) => [s.id, fresh()]));
+  const wrongCounts = new Map<string, number>();
+  let seenIntro = false;
+  let needsAgain = false;
+  const list = [...attempts].sort((x, y) => x.at.localeCompare(y.at));
+  for (const a of list) {
+    if (a.intro) {
+      if (a.skill === skillId) { seenIntro = true; needsAgain = false; }
+      continue;
+    }
+    const wasMastered = skills[skillId].mastered;
+    if (a.skill && skill(a.skill) && !a.retry && !a.fix) apply(skills, a);
+    const [prev, next] = stepWrongCount(wrongCounts, a);
+    if (prev < WRONG_DROP && next >= WRONG_DROP) {
+      const unit = problemUnit(a);
+      if (unit && skills[unit].mastered) forgot(skills[unit], dayKey(new Date(a.at)));
+    }
+    const now = skills[skillId];
+    if (wasMastered && !now.mastered && (now.lapsed || now.stepped)) needsAgain = true;
+    else if (now.mastered) needsAgain = false;
+  }
+  if (skills[skillId].mastered) return undefined;
+  if (needsAgain) return 'again';
+  return seenIntro ? undefined : 'first';
 }
 
 /** 이 유형에서 지금 익힐 단원 id */
@@ -307,7 +341,7 @@ export const isDue = (p: Progress, id: string, today: string) => {
 /** 이 단원에서 최근에 틀린 요소별 횟수(최근 20번). 생성기가 약점을 더 자주 내는 데 쓴다 */
 export function weakness(attempts: SkillAttempt[], id: string): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const a of attempts.filter((x) => x.skill === id).slice(-20)) for (const m of a.miss ?? []) out[m] = (out[m] ?? 0) + 1;
+  for (const a of attempts.filter((x) => x.skill === id && !x.intro).slice(-20)) for (const m of a.miss ?? []) out[m] = (out[m] ?? 0) + 1;
   return out;
 }
 
